@@ -1,5 +1,9 @@
 // Offline test of the championship fix against the real game code.
-//   championship_test <fh2.exe> <DefaultCache.bin> <BinarySaveState>
+//   championship_test <fh2.exe> <DefaultCache.bin> [<BinarySaveState>|-] [platform]
+// Without a save, the state holds 11 records copied from DefaultCache.bin
+// with a few bytes changed, as saved copies have. "platform" runs it as on
+// platform 2.2+, through a stand-in for the platform's hook API (the real
+// one is tested on this same vtable slot in the platform's hook test).
 // Maps the exe at its preferred base (like Azimuth), lets the fix find it and
 // patch ChampionshipDrivatarsState's vtable, then calls Serialize through the
 // patched slot in "saving" mode with a fake archive (which only needs the
@@ -7,6 +11,7 @@
 // 11 Drivatars from a real save. Checks every one ends up with the name its
 // id has in the override.
 #include "common.hpp"
+#include "platform_link.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -54,14 +59,58 @@ static std::wstring name_at(const char* rec) {
     return n;
 }
 
+extern "C" int fh2mod_init(const FH2ModApi* api); // platform_link.cpp
+
+// A stand-in for the platform (API 3): hook_pointer and enable_hooks swap
+// the slot the way the platform does, with `original` the old pointer.
+static void** g_hook_slot;
+static void* g_hook_detour;
+static int g_hooks_made, g_code_waits;
+static FH2ModApi fake_api() {
+    FH2ModApi a{};
+    a.size             = sizeof a;
+    a.api_version      = 3;
+    a.platform_version = "2.2.0";
+    a.azimuth_dir      = L".";
+    a.game_dir         = L"";
+    a.register_mod     = [](const FH2ModInfo*) { return reinterpret_cast<FH2Mod*>(0x1000); };
+    a.log              = [](FH2Mod*, const char*) {};
+    a.publish_interface = [](FH2Mod*, const char*, uint32_t, const void*) {};
+    a.wait_for_code    = [](uint32_t) -> void* { ++g_code_waits; return reinterpret_cast<void*>(0x140000000); };
+    a.hook_pointer     = [](FH2Mod* m, const char*, void** slot, void* detour, void** original) -> FH2Hook* {
+        if (!m) return nullptr;
+        ++g_hooks_made;
+        g_hook_slot   = slot;
+        g_hook_detour = detour;
+        *original     = *slot;
+        return reinterpret_cast<FH2Hook*>(0x2000);
+    };
+    a.enable_hooks = [](FH2Mod*, FH2Hook*) {
+        DWORD old = 0;
+        VirtualProtect(g_hook_slot, 8, PAGE_READWRITE, &old);
+        *g_hook_slot = g_hook_detour;
+        VirtualProtect(g_hook_slot, 8, old, &old);
+        return 1;
+    };
+    return a;
+}
+
 int wmain(int argc, wchar_t** argv) {
-    if (argc < 4) return 2;
+    if (argc < 3) return 2;
+    const bool with_platform = argc > 4 && std::wstring{argv[4]} == L"platform";
+    static FH2ModApi api = fake_api();
+    if (with_platform) {
+        CHECK(fh2mod_init(&api) == 0);
+        CHECK(wait_for_platform(0) == &api && platform_v3() == &api);
+    } else {
+        CHECK(wait_for_platform(0) == nullptr);
+    }
     log_open("championship_test.log");
     fs::path root = fs::temp_directory_path() / "wmb_champ_test";
     std::error_code ec; fs::remove_all(root, ec); fs::create_directories(root);
     Paths p; p.azimuth = root; p.data = root;
     p.original = root / "orig.bin"; p.override_ = root / "override.bin";
-    fs::copy_file(argv[2], p.original);
+    fs::copy_file(argv[2], p.original, fs::copy_options::overwrite_existing);
 
     // Override: id N gets "FriendNN".
     auto cache = slurp(argv[2]);
@@ -85,11 +134,24 @@ int wmain(int argc, wchar_t** argv) {
     start_championship_fix(p);
     for (int i = 0; i < 50 && *slot == original; ++i) Sleep(100);
     CHECK(*slot != original);
+    if (with_platform) CHECK(g_hooks_made == 1 && g_code_waits == 1 && g_hook_slot == slot);
 
     // State object as the game lays it out: count at +0x1C, vector at +0x20.
-    auto save = slurp(argv[3]);
     const int count = 11;
-    std::vector<char> recs(save.begin() + 0x54, save.begin() + 0x54 + count * R);
+    std::vector<char> recs;
+    if (argc > 3 && std::wstring{argv[3]} != L"-") {
+        auto save = slurp(argv[3]);
+        recs.assign(save.begin() + 0x54, save.begin() + 0x54 + count * R);
+    } else {
+        // Copies of built-in Drivatars as a save holds them: the original
+        // names, and a few bytes that differ from the cache's copy.
+        const auto orig = slurp(argv[2]);
+        for (int i = 0; i < count; ++i) {
+            const char* rec = orig.data() + H + (i * 11 % n) * R;
+            recs.insert(recs.end(), rec, rec + R);
+            for (int k = 0; k < 4; ++k) recs[i * R + 0x40 + k * 0x100] ^= 0x01;
+        }
+    }
     alignas(16) char state[0x40]{};
     *reinterpret_cast<int*>(state + 0x1C) = count;
     char* vb = recs.data();

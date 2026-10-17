@@ -62,6 +62,11 @@ const FH2ModApi* platform_v2() {
     return api && api->api_version >= 2 && g_mod ? api : nullptr;
 }
 
+const FH2ModApi* platform_v3() {
+    const FH2ModApi* api = g_api;
+    return api && api->api_version >= 3 && g_mod ? api : nullptr;
+}
+
 void publish_drivatar_names(const std::vector<std::string>& names) {
     std::scoped_lock lk{g_pub_mu};
     g_names = names;

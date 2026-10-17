@@ -2,7 +2,7 @@
 # Cross-compiles WheresMyBuddy with llvm-mingw and stages dist/:
 #   dist/d3dcompiler_47.dll             FH2 Mod Platform (next to azimuth.exe)
 #   dist/fh2-mods/WheresMyBuddy.dll     the mod
-#   dist/README.txt, dist/LICENSE.txt
+#   dist/README.txt, dist/LICENSE.txt, dist/LICENSE-MinHook.txt (the platform includes MinHook)
 #
 #   $ scripts/build.sh                          (built-in app ID)
 #   $ WMB_CLIENT_ID=<azure app id> scripts/build.sh
@@ -28,4 +28,5 @@ cp "$root/build/platform/d3dcompiler_47.dll" "$root/dist/"
 cp "$root/build/WheresMyBuddy.dll" "$root/dist/fh2-mods/"
 cp "$root/scripts/dist-readme.txt" "$root/dist/README.txt"
 cp "$root/LICENSE" "$root/dist/LICENSE.txt"
+cp "$root/platform/third_party/minhook/LICENSE.txt" "$root/dist/LICENSE-MinHook.txt"
 (cd "$root/dist" && find . -type f -printf '  %P\n')
