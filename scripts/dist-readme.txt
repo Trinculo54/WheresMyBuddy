@@ -6,8 +6,9 @@ Your real Xbox friends as the Drivatars in Forza Horizon 2 (Azimuth).
 FH2 names its AI drivers after 25 random players, and the servers that
 used to send real Drivatars are long gone. WheresMyBuddy signs in to Xbox
 Live, gets the people you follow, and gives their gamertags to those
-Drivatars instead (favourites first). It can also set your own in-game name
-and avatar to your gamertag and gamerpic.
+Drivatars instead (favourites first), in free roam, championships, road
+trips and car meets. It can also set your own in-game name and avatar to
+your gamertag and gamerpic.
 
 Project page and source: https://github.com/Trinculo54/WheresMyBuddy
 
@@ -18,7 +19,7 @@ Requirements
   - Forza Horizon 2 running through Azimuth.
   - Forza Horizon 2 Extra Options, with EnableMediaOverrides=1 in
     FH2_ExtraOptions.ini (the default). It's what lets the game load the
-    new Drivatar names.
+    new names.
     https://github.com/RokkuDayo/forzahorizon2_extraoptions
 
 
@@ -92,6 +93,8 @@ launch). Useful lines:
   signed in to Xbox Live as <you>      the sign-in works
   got N people from Xbox Live          your friends list arrived
   wrote ... with N of 25 Drivatar names replaced
+  wrote AI driver names (car meets, ...)  car meet / road trip names too
+  championship Drivatar X -> Y          an older championship got renamed
                                        the Drivatar list was rewritten
 
 Still the old names: launch a second time, and check that Extra Options is

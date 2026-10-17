@@ -12,11 +12,11 @@ Signing in happens on the normal Microsoft sign-in page in your browser, the sam
 
 After your first sign-in it copies your gamertag into Azimuth's player name and your gamerpic into the custom avatar slot from [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions). This happens once, and then it's left alone so you can still change either one yourself. Your old avatar picture is kept as a backup.
 
-The game's own files are never modified. The new Drivatar names go into the override folder that Extra Options provides, so turning the mod off puts the original Drivatars right back.
+Your friends show up everywhere the game names its AI drivers: free roam, championship races (including ones you started before installing the mod), road trips and car meets. The game's own files are never modified. The new names go into the override folder that Extra Options provides, so turning the mod off puts the original Drivatars right back.
 
 ## Install
 
-You'll need Forza Horizon 2 running on PC through Azimuth, and [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) installed with `EnableMediaOverrides=1` in its ini, which is the default. Extra Options is what lets the game load the modified Drivatar list.
+You'll need Forza Horizon 2 running on PC through Azimuth, and [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) installed with `EnableMediaOverrides=1` in its ini, which is the default. Extra Options is what lets the game load the modified Drivatar list and AI driver names.
 
 Download the latest zip from the [Releases](../../releases) page, close Azimuth, and extract the zip into your Azimuth folder, the one with `azimuth.exe` in it. You should end up with `d3dcompiler_47.dll` next to `azimuth.exe` and `WheresMyBuddy.dll` inside a `fh2-mods` folder.
 
@@ -42,7 +42,7 @@ Under `[profile]`, `player_name` and `gamerpic` can each be `once`, `always` or 
 
 ## Uninstall
 
-Set `enabled=0` under `[names]` and launch the game once to put the original Drivatars back, then delete `fh2-mods\WheresMyBuddy.dll` and the `wheresmybuddy` folder. If you don't use any other FH2 mods, delete `d3dcompiler_47.dll` and the `fh2-mods` folder too. If you've already deleted the mod, you can remove `FH2\Mount\mediaoverride\drivatarglobalcache\DefaultCache.bin` by hand instead. To get your old avatar back, rename `Gamerpic.before-wheresmybuddy.png` next to `FH2_ExtraOptions.ini` to `Gamerpic.png`.
+Set `enabled=0` under `[names]` and launch the game once to put the original Drivatars back, then delete `fh2-mods\WheresMyBuddy.dll` and the `wheresmybuddy` folder. If you don't use any other FH2 mods, delete `d3dcompiler_47.dll` and the `fh2-mods` folder too. If you've already deleted the mod, you can remove `FH2\Mount\mediaoverride\drivatarglobalcache\DefaultCache.bin` and the `AIPlayers.str` files under `FH2\Mount\mediaoverride\Stripped\StringTables` by hand instead. To get your old avatar back, rename `Gamerpic.before-wheresmybuddy.png` next to `FH2_ExtraOptions.ini` to `Gamerpic.png`.
 
 If you want to revoke the mod's Xbox access as well, remove WheresMyBuddy from the apps list at <https://account.live.com/consent/Manage>.
 
@@ -51,6 +51,8 @@ If you want to revoke the mod's Xbox access as well, remove WheresMyBuddy from t
 FH2 keeps its Drivatars in `media\DrivatarGlobalCache\DefaultCache.bin`, a list of 125 driver records that only use 25 different gamertags between them. Each record keeps its gamertag as UTF-16 text in a fixed 16-character field. When Azimuth starts, the mod copies that file into Extra Options' `mediaoverride` folder and rewrites the name fields, leaving everything else in every record untouched. Extra Options makes the game load the override instead of the original.
 
 Championships work a little differently. When you start one, the game copies the Drivatars it picked into your save, and every race of that championship loads them from there instead of from the Drivatar list, so a championship started before you installed the mod would still have the old names. Each of those saved Drivatars carries the same id (1 to 25) it has in `DefaultCache.bin`, so when the game loads them, the mod gives each one the name that id has in the Drivatar list right now. It does this in memory after the game reads your save. The save file itself is never edited, and it simply picks up the new names the next time the game saves.
+
+Car meets and some road-trip traffic don't use Drivatars at all. Their drivers are named from a plain string table, `AIPlayers.str`, which sits inside each language's string table zip in `media\Stripped\StringTables` and holds the same 25 gamertags plus one extra, "HRZN Ben". The mod reads it out of every language zip, swaps the names the same way as the Drivatars (HRZN Ben gets the next friend in line), and writes the result to `mediaoverride\Stripped\StringTables\<language>\AIPlayers.str`, so the zips are left alone.
 
 The Xbox side is the standard chain a PC app uses: a Microsoft account sign-in through the identity platform's consumer endpoint (authorization code with PKCE and a `localhost` redirect, or the device code flow as the fallback), then an Xbox Live user token, then an XSTS token, then the Xbox people hub for your friends list. Your own name goes into `player_name` in Azimuth's `data\azimuth.ini`, and your gamerpic comes from the Xbox profile service and is saved as Extra Options' `Gamerpic.png`.
 
@@ -66,11 +68,11 @@ The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releas
 
 The release build has the WheresMyBuddy Azure app ID built in. If you fork this, you can use your own: register an app in the [Azure portal](https://portal.azure.com) under App registrations, choose "Personal Microsoft accounts only", add `http://localhost` as a redirect URI under the "Mobile and desktop applications" platform, and turn on "Allow public client flows". Then either build with `WMB_CLIENT_ID=<your app id> ./scripts/build.sh` or put the ID in `client_id` in the ini.
 
-Configuring with `-DWMB_TESTS=ON` also builds three offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin`, which you pass in as an argument. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
+Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin` and any string table zips you pass it. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
 
 ## Troubleshooting
 
-Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. The FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the mod was loaded at all.
+Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `wrote AI driver names (car meets, road trips) for N of N languages`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the mod was loaded at all.
 
 | Symptom | Fix |
 |---|---|

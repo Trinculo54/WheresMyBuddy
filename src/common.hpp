@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <map>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -54,6 +56,14 @@ constexpr std::size_t kMaxGamertag = 15;
 // settings.max_names of the 25 built-in gamertags with `names` (in order).
 // Returns the number of distinct built-in names replaced, or -1 on error.
 int write_override(const Paths& p, const Settings& s, const std::vector<std::string>& names);
+
+// ---- AI driver names (aiplayers.cpp) ----------------------------------------
+// Writes mediaoverride\Stripped\StringTables\<lang>\AIPlayers.str for every
+// language, with names swapped per `rename` (old -> new). Empty removes them.
+void write_ai_players(const Paths& p, const std::map<std::wstring, std::wstring>& rename);
+std::vector<char> rename_lsb2(const std::vector<char>& table, const std::map<std::wstring, std::wstring>& rename,
+                              int* changed);
+std::vector<char> unzip_file(const std::filesystem::path& zip, std::string_view name);
 
 // ---- names ------------------------------------------------------------------
 std::vector<std::string> read_manual_names(const Paths& p);   // friends.txt

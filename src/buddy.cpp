@@ -199,6 +199,36 @@ std::wstring record_name(const std::vector<char>& d, std::size_t i) {
 }
 } // namespace
 
+namespace {
+
+// Write beside the target, then swap it in, so the game never sees a
+// half-written file.
+bool replace_file(const fs::path& target, const std::vector<char>& d) {
+    std::error_code ec;
+    fs::create_directories(target.parent_path(), ec);
+    const auto tmp = target.wstring() + L".tmp";
+    {
+        std::ofstream out{fs::path{tmp}, std::ios::binary | std::ios::trunc};
+        out.write(d.data(), static_cast<std::streamsize>(d.size()));
+        if (!out) {
+            log("couldn't write {}", to_utf8(tmp));
+            return false;
+        }
+    }
+    // Game files often come read-only; that would block the swap.
+    const DWORD attrs = GetFileAttributesW(target.c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY))
+        SetFileAttributesW(target.c_str(), attrs & ~FILE_ATTRIBUTE_READONLY);
+    if (!MoveFileExW(tmp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+        log("couldn't replace {} (error {})", to_utf8(target.wstring()), GetLastError());
+        DeleteFileW(tmp.c_str());
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
 int write_override(const Paths& p, const Settings& s, const std::vector<std::string>& names) {
     std::error_code ec;
     if (p.original.empty()) {
@@ -206,15 +236,20 @@ int write_override(const Paths& p, const Settings& s, const std::vector<std::str
         return -1;
     }
 
-    // Off, or nothing to use: remove our override so the game uses its own.
+    // Off, or nothing to use: remove our override and put the game's own
+    // file back, so it uses the original Drivatars.
     if (!s.enabled || names.empty()) {
         if (fs::remove(p.override_, ec))
             log("removed the override; the original Drivatars are back");
+        write_ai_players(p, {});
         return 0;
     }
 
-    std::ifstream in{p.original, std::ios::binary};
-    std::vector<char> d((std::istreambuf_iterator<char>(in)), {});
+    std::vector<char> d;
+    {
+        std::ifstream in{p.original, std::ios::binary};
+        d.assign(std::istreambuf_iterator<char>(in), {});
+    }
     uint32_t version = 0, count = 0;
     if (d.size() >= kHeader) {
         std::memcpy(&version, d.data(), 4);
@@ -257,23 +292,15 @@ int write_override(const Paths& p, const Settings& s, const std::vector<std::str
         }
     }
 
-    // Write beside the target, then swap it in, so the game never sees a
-    // half-written file.
-    fs::create_directories(p.override_.parent_path(), ec);
-    const auto tmp = p.override_.wstring() + L".tmp";
-    {
-        std::ofstream out{fs::path{tmp}, std::ios::binary | std::ios::trunc};
-        out.write(d.data(), static_cast<std::streamsize>(d.size()));
-        if (!out) {
-            log("couldn't write {}", to_utf8(tmp));
-            return -1;
-        }
-    }
-    if (!MoveFileExW(tmp.c_str(), p.override_.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-        log("couldn't replace the override file (error {})", GetLastError());
-        DeleteFileW(tmp.c_str());
-        return -1;
-    }
+    if (!replace_file(p.override_, d)) return -1;
+
+    // The same names for the AI driver string table (car meets etc.);
+    // "HRZN Ben" is only in there, so he gets the next name in line.
+    std::map<std::wstring, std::wstring> rename;
+    for (std::size_t i = 0; i < slots.size(); ++i)
+        if (!repl[i].empty()) rename[slots[i]] = repl[i];
+    if (used < names.size()) rename[L"HRZN Ben"] = to_wide(names[used]);
+    write_ai_players(p, rename);
 
     log("wrote {} with {} of {} Drivatar names replaced:", to_utf8(p.override_.wstring()), used,
         slots.size());

@@ -22,6 +22,11 @@ static std::vector<std::wstring> names_in(const fs::path& f) {
     return out;
 }
 
+static std::string read_all(const fs::path& f) {
+    std::ifstream in{f, std::ios::binary};
+    return {std::istreambuf_iterator<char>(in), {}};
+}
+
 int main(int argc, char** argv) {
     wchar_t tmp[MAX_PATH]; GetTempPathW(MAX_PATH, tmp);
     fs::path root = fs::path{tmp} / L"wmb_test";
@@ -33,6 +38,10 @@ int main(int argc, char** argv) {
     fs::create_directories(p.original.parent_path());
     fs::copy_file(argv[1], p.original);
     log_open(root / "test.log");
+    // string table zips (argv[2..]) for the AI driver names
+    const auto tables = p.mount / "media" / "Stripped" / "StringTables";
+    fs::create_directories(tables);
+    for (int i = 2; i < argc; ++i) fs::copy_file(argv[i], tables / fs::path{argv[i]}.filename());
 
     Settings s = load_settings(p);
     CHECK(fs::exists(p.data / "WheresMyBuddy.ini") && fs::exists(p.data / "friends.txt"));
@@ -49,8 +58,18 @@ int main(int argc, char** argv) {
     CHECK(n[0] == L"Trinculo54" && n[25] == L"Trinculo54" && n[124] == orig[124]);
     CHECK(n[1] == L"BuddyOne" && n[2] == L"Xbox Pal" && n[3] == L"\u00dcn\u00efc\u00f8d\u00e9");
     CHECK(n[4] == orig[4]);  // 5th distinct name untouched
+    fs::copy(p.mount / "mediaoverride" / "Stripped" / "StringTables", root / "ai_check", fs::copy_options::recursive);
+    // AI driver names: same swap, HRZN Ben untouched (no 5th name to give him)
+    if (argc > 2) {
+        const auto lang = fs::path{argv[2]}.stem();
+        auto str = read_all(p.mount / "mediaoverride" / "Stripped" / "StringTables" / lang / "AIPlayers.str");
+        auto u16 = [](const char* s) { std::string o; for (; *s; ++s) { o += *s; o += '\0'; } return o; };
+        CHECK(str.find(u16("Trinculo54")) != std::string::npos && str.find(u16("Nocomply76")) == std::string::npos);
+        CHECK(str.find(u16("Richiiieee")) != std::string::npos && str.find(u16("HRZN Ben")) != std::string::npos);
+    }
     // nothing but names changed
     {
+        CHECK(names_in(p.original) == orig);  // game file untouched
         std::ifstream a{p.original, std::ios::binary}, b{p.override_, std::ios::binary};
         std::vector<char> da((std::istreambuf_iterator<char>(a)), {}), db((std::istreambuf_iterator<char>(b)), {});
         size_t outside = 0;
@@ -85,6 +104,14 @@ int main(int argc, char** argv) {
 
     // no names / disabled -> override removed
     CHECK(write_override(p, s, {}) == 0 && !fs::exists(p.override_));
+    if (argc > 2)
+        CHECK(!fs::exists(p.mount / "mediaoverride" / "Stripped" / "StringTables" / fs::path{argv[2]}.stem() / "AIPlayers.str"));
+    // ...and the game's own file was never touched
+    {
+        std::ifstream a{p.original, std::ios::binary}, b{argv[1], std::ios::binary};
+        std::vector<char> da((std::istreambuf_iterator<char>(a)), {}), db((std::istreambuf_iterator<char>(b)), {});
+        CHECK(da == db);
+    }
 
     std::printf("\n%s (%d failures)\n", fails ? "FAILED" : "ALL PASSED", fails);
     return fails;
