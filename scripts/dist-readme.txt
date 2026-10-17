@@ -63,12 +63,20 @@ Created on first launch. Changes apply the next time you start Azimuth.
   browser_sign_in=1  0 = enter a code at microsoft.com/link instead
   client_id=...      Azure app used for sign-in; leave as is
 
+  [updates]
+  check=1            0 = don't check GitHub for a newer version
+
   [profile]
   player_name=once   once / always / off
   gamerpic=once      once / always / off
                      "once" sets it after your first sign-in and then
                      leaves it alone, so you can still change it yourself.
                      Delete profile-applied.ini to do it again.
+
+When a newer version is out, the title screen says so after
+"PRESS (A) TO START". It also tells you if the FH2 Mod Loader
+(d3dcompiler_47.dll) is older than the one this mod came with; reinstall
+WheresMyBuddy to fix that.
 
 friends.txt: extra names, one per line, 15 characters max. These always
 come before your Xbox friends.

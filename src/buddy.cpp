@@ -106,6 +106,13 @@ constexpr const char* kProfileBlock =
     "gamerpic=once\r\n";
 
 
+constexpr const char* kUpdatesBlock =
+    "\r\n"
+    "[updates]\r\n"
+    "; 1 = check GitHub for a newer WheresMyBuddy (at most every 6 hours) and\r\n"
+    "; say so on the title screen. 0 = never go online for this.\r\n"
+    "check=1\r\n";
+
 constexpr const char* kDefaultFriendsTxt =
     "# WheresMyBuddy: extra Drivatar names, one per line (max 15 characters).\r\n"
     "# These are used before your Xbox friends. Lines starting with # are ignored.\r\n";
@@ -134,7 +141,7 @@ Settings load_settings(const Paths& p) {
     fs::create_directories(p.data, ec);
     const auto ini_path = p.data / "WheresMyBuddy.ini";
     if (!fs::exists(ini_path, ec)) {
-        std::ofstream{ini_path, std::ios::binary} << kDefaultIni << kProfileBlock;
+        std::ofstream{ini_path, std::ios::binary} << kDefaultIni << kProfileBlock << kUpdatesBlock;
     } else {
         // Inis written before [profile] existed get the new section added.
         std::ifstream in{ini_path, std::ios::binary};
@@ -142,6 +149,8 @@ Settings load_settings(const Paths& p) {
         in.close();
         if (text.find("[profile]") == std::string::npos)
             std::ofstream{ini_path, std::ios::binary | std::ios::app} << kProfileBlock;
+        if (text.find("[updates]") == std::string::npos)
+            std::ofstream{ini_path, std::ios::binary | std::ios::app} << kUpdatesBlock;
     }
     if (!fs::exists(p.data / "friends.txt", ec))
         std::ofstream{p.data / "friends.txt", std::ios::binary} << kDefaultFriendsTxt;
@@ -165,6 +174,7 @@ Settings load_settings(const Paths& p) {
         if (w == L"always" || w == L"2") return Settings::Apply::Always;
         return Settings::Apply::Once;
     };
+    s.check_updates = ini_int(ini, L"updates", L"check", 1) != 0;
     s.player_name = apply(L"player_name");
     s.gamerpic    = apply(L"gamerpic");
     // Blank in the ini (e.g. written by an older build) -> the built-in ID.

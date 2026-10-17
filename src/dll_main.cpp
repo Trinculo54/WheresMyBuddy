@@ -12,6 +12,7 @@
 //      (once, by default; see profile.cpp).
 
 #include "common.hpp"
+#include "fh2_updates.hpp"
 
 #include <filesystem>
 
@@ -23,7 +24,7 @@ DWORD WINAPI run(LPVOID param) {
     std::error_code ec;
     std::filesystem::create_directories(p.data, ec);
     log_open(p.data / "wheresmybuddy.log");
-    log("WheresMyBuddy starting; Azimuth folder {}", to_utf8(p.azimuth.wstring()));
+    log("WheresMyBuddy {} starting; Azimuth folder {}", WMB_VERSION, to_utf8(p.azimuth.wstring()));
     if (p.mount.empty()) {
         log("couldn't find the FH2 game folder (looked via data\\azimuth.ini and FH2\\Mount); stopping");
         return 0;
@@ -41,6 +42,11 @@ DWORD WINAPI run(LPVOID param) {
     }
 
     const Settings s = load_settings(p);
+
+    // Version / update notice on the title screen (background).
+    fh2common::start_update_check({L"WheresMyBuddy", L"WheresMyBuddy.dll", WMB_VERSION, "Trinculo54/WheresMyBuddy",
+                                   FH2_LOADER_VERSION, p.azimuth, s.check_updates,
+                                   [](const std::string& m) { log("{}", m); }});
     const auto manual = read_manual_names(p);
     auto cached       = read_cached_friends(p);
     log("{} name(s) from friends.txt, {} saved Xbox friend(s)", manual.size(), cached.size());

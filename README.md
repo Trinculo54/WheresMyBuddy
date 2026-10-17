@@ -24,6 +24,10 @@ Launch the game as normal. Your browser opens on the Microsoft sign-in page, and
 
 The game reads its Drivatar list very early, usually before the sign-in finishes, so your friends show up from the second launch onwards. The same goes for your name and avatar. From then on, every launch uses your saved friends straight away and quietly refreshes the list in the background.
 
+### Updates
+
+When a newer WheresMyBuddy is out, the title screen tells you: "PRESS (A) TO START" gets a note like "WheresMyBuddy 1.2.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches. If another mod has put back an older FH2 Mod Loader than the one WheresMyBuddy came with, the title screen says that too, and reinstalling WheresMyBuddy fixes it. Other mods that use the loader, like FH2 Universal Radio, put their notes in the same spot. The version you have is in the first line of the log and in the DLL's file properties.
+
 ### Using it with other FH2 mods
 
 `d3dcompiler_47.dll` is the FH2 Mod Loader. All it does is load every mod in the `fh2-mods` folder, and every mod that uses it ships the same file, so you can install them in any order and overwrite it freely. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) uses it from version 1.1.0. Older versions of the radio came with their own `d3dcompiler_47.dll`, so update the radio as well if you use both. Extra Options loads through `winmm.dll` and isn't affected.
@@ -37,6 +41,8 @@ Under `[names]`, `enabled` turns the whole mod on or off, and setting it to 0 re
 Under `[xbox]`, `enabled` set to 0 skips Xbox Live entirely and only uses `friends.txt`. `browser_sign_in` set to 0 swaps the browser sign-in for a code you enter at microsoft.com/link, in case the browser route doesn't work on your machine. `client_id` is the Azure app the sign-in goes through. Leave it alone unless you've registered your own, as described below.
 
 Under `[profile]`, `player_name` and `gamerpic` can each be `once`, `always` or `off`. `once` sets it after your first sign-in and then never touches it again, `always` keeps it in sync with Xbox on every launch, and `off` leaves it alone. To run a `once` again, delete `profile-applied.ini`.
+
+Under `[updates]`, `check` set to 0 stops the mod from asking GitHub whether there's a newer version.
 
 `friends.txt` takes one name per line. Gamertags are limited to 15 characters, the same as on the Xbox One, and longer ones are skipped.
 
@@ -64,15 +70,15 @@ The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releas
 ./scripts/build.sh
 ```
 
-`dist/` then holds `d3dcompiler_47.dll`, `fh2-mods/WheresMyBuddy.dll` and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.0.0` also creates a draft release with the zip attached, ready to be published.
+`dist/` then holds `d3dcompiler_47.dll`, `fh2-mods/WheresMyBuddy.dll` and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.0.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`. Bump it before tagging, since the tag build refuses to run if the two don't match, and it's what the mod compares against the latest GitHub release.
 
 The release build has the WheresMyBuddy Azure app ID built in. If you fork this, you can use your own: register an app in the [Azure portal](https://portal.azure.com) under App registrations, choose "Personal Microsoft accounts only", add `http://localhost` as a redirect URI under the "Mobile and desktop applications" platform, and turn on "Allow public client flows". Then either build with `WMB_CLIENT_ID=<your app id> ./scripts/build.sh` or put the ID in `client_id` in the ini.
 
-Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin` and any string table zips you pass it. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
+Configuring with `-DWMB_TESTS=ON` also builds five offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin` and any string table zips you pass it. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect. `updates_test` checks the version comparison, the loader version check and the title-screen notices.
 
 ## Troubleshooting
 
-Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `wrote AI driver names (car meets, road trips) for N of N languages`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the mod was loaded at all.
+Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `wrote AI driver names (car meets, road trips) for N languages`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the mod was loaded at all.
 
 | Symptom | Fix |
 |---|---|
