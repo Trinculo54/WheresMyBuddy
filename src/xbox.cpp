@@ -411,8 +411,9 @@ std::string own_gamerpic_url(const Xsts& x) {
 // ---- friends ---------------------------------------------------------------------
 
 bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out, XboxMe* me,
-                        bool want_gamerpic) {
+                        bool want_gamerpic, std::vector<std::string>* favorites) {
     out.clear();
+    if (favorites) favorites->clear();
     if (s.client_id.empty()) {
         log("Xbox sign-in skipped: no client_id set under [xbox] in WheresMyBuddy.ini");
         return false;
@@ -440,7 +441,10 @@ bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::stri
     }
     if (s.favorites_first)
         std::stable_partition(people.begin(), people.end(), [](const Person& x) { return x.favorite; });
-    for (const auto& x : people) out.push_back(x.tag);
+    for (const auto& x : people) {
+        out.push_back(x.tag);
+        if (favorites && x.favorite) favorites->push_back(x.tag);
+    }
     log("got {} people from Xbox Live ({} favourites)", out.size(),
         std::count_if(people.begin(), people.end(), [](const Person& x) { return x.favorite; }));
     return true;

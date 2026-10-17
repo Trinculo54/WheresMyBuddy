@@ -75,8 +75,13 @@ constexpr const char* kDefaultIni =
     "; original Drivatars, 1 repeats your names to fill every slot.\r\n"
     "repeat_to_fill=0\r\n"
     "\r\n"
-    "; Put your Xbox favourites first.\r\n"
+    "; Put your Xbox favourites first (and, with rotate=1, always in).\r\n"
     "favorites_first=1\r\n"
+    "\r\n"
+    "; If you have more friends than max_names: 1 rotates through all of\r\n"
+    "; them, a different set each launch (favourites and friends.txt names\r\n"
+    "; always stay in); 0 always uses the same first ones.\r\n"
+    "rotate=1\r\n"
     "\r\n"
     "; You can also add names by hand in friends.txt (one per line);\r\n"
     "; those always come first.\r\n"
@@ -161,6 +166,13 @@ Settings load_settings(const Paths& p) {
     s.max_names       = std::clamp(ini_int(ini, L"names", L"max_names", 25), 1, 25);
     s.repeat_to_fill  = ini_int(ini, L"names", L"repeat_to_fill", 0) != 0;
     s.favorites_first = ini_int(ini, L"names", L"favorites_first", 1) != 0;
+    s.rotate          = ini_int(ini, L"names", L"rotate", 1) != 0;
+    {
+        // Inis from before rotation existed: add the key so it's discoverable.
+        wchar_t v[8]{};
+        if (!GetPrivateProfileStringW(L"names", L"rotate", L"", v, 8, ini.c_str()))
+            WritePrivateProfileStringW(L"names", L"rotate", L"1", ini.c_str());
+    }
     s.xbox            = ini_int(ini, L"xbox", L"enabled", 1) != 0;
     s.browser_sign_in = ini_int(ini, L"xbox", L"browser_sign_in", 1) != 0;
     wchar_t id[128]{};
@@ -334,24 +346,69 @@ std::vector<std::string> read_manual_names(const Paths& p) {
     return out;
 }
 
-std::vector<std::string> read_cached_friends(const Paths& p) {
+std::vector<std::string> read_cached_friends(const Paths& p, std::vector<std::string>* favorites) {
     std::vector<std::string> out;
+    if (favorites) favorites->clear();
     std::ifstream in{p.data / "friends-cache.json"};
     if (!in) return out;
     try {
         const auto j = json::parse(in);
         for (const auto& f : j.at("friends")) out.push_back(f.get<std::string>());
+        if (favorites && j.contains("favorites"))
+            for (const auto& f : j.at("favorites")) favorites->push_back(f.get<std::string>());
     } catch (...) {}
     return out;
 }
 
-void save_cached_friends(const Paths& p, const std::vector<std::string>& friends) {
+void save_cached_friends(const Paths& p, const std::vector<std::string>& friends,
+                         const std::vector<std::string>& favorites) {
     SYSTEMTIME t;
     GetLocalTime(&t);
     const json j{{"updated", std::format("{:04}-{:02}-{:02} {:02}:{:02}", t.wYear, t.wMonth, t.wDay,
                                          t.wHour, t.wMinute)},
-                 {"friends", friends}};
+                 {"friends", friends},
+                 {"favorites", favorites}};
     std::ofstream{p.data / "friends-cache.json", std::ios::trunc} << j.dump(2);
+}
+
+std::size_t read_rotation(const Paths& p) {
+    return GetPrivateProfileIntW(L"rotation", L"next", 0, (p.data / "rotation.ini").wstring().c_str());
+}
+
+void save_rotation(const Paths& p, std::size_t next) {
+    WritePrivateProfileStringW(L"rotation", L"next", std::to_wstring(next).c_str(),
+                               (p.data / "rotation.ini").wstring().c_str());
+}
+
+std::vector<std::string> pick_lineup(const Settings& s, const std::vector<std::string>& merged,
+                                     const std::vector<std::string>& manual,
+                                     const std::vector<std::string>& favorites, std::size_t start,
+                                     std::size_t* next) {
+    const std::size_t slots = static_cast<std::size_t>(std::clamp(s.max_names, 1, 25));
+    if (next) *next = start;
+    if (!s.rotate || merged.size() <= slots) return merged;
+
+    // Who always stays in: friends.txt names, and favourites if they go first.
+    std::unordered_set<std::wstring> keep;
+    for (const auto& n : manual) keep.insert(lower(to_wide(n)));
+    if (s.favorites_first)
+        for (const auto& n : favorites) keep.insert(lower(to_wide(n)));
+    std::vector<std::string> out, pool;
+    for (const auto& n : merged) (keep.count(lower(to_wide(n))) ? out : pool).push_back(n);
+    if (out.size() >= slots) {
+        log("{} favourites / friends.txt names already fill all {} Drivatar names, so there's nothing to "
+            "rotate",
+            out.size(), slots);
+        out.resize(slots);
+        return out;
+    }
+    const std::size_t free = slots - out.size();
+    start %= pool.size();
+    for (std::size_t i = 0; i < free; ++i) out.push_back(pool[(start + i) % pool.size()]);
+    if (next) *next = (start + free) % pool.size();
+    log("rotating {} friends through {} Drivatar names: {} always in, {} of the other {} this launch", merged.size(),
+        slots, slots - free, free, pool.size());
+    return out;
 }
 
 std::vector<std::string> merge_names(const std::vector<std::string>& manual,

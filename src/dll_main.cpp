@@ -48,16 +48,23 @@ DWORD WINAPI run(LPVOID param) {
                                    FH2_LOADER_VERSION, p.azimuth, s.check_updates,
                                    [](const std::string& m) { log("{}", m); }});
     const auto manual = read_manual_names(p);
-    auto cached       = read_cached_friends(p);
+    std::vector<std::string> cached_favs;
+    auto cached = read_cached_friends(p, &cached_favs);
     log("{} name(s) from friends.txt, {} saved Xbox friend(s)", manual.size(), cached.size());
-    write_override(p, s, merge_names(manual, cached));
+
+    // Rotation advances once per launch; a refresh later this launch reuses
+    // the same starting point.
+    const std::size_t start = read_rotation(p);
+    std::size_t next        = start;
+    write_override(p, s, pick_lineup(s, merge_names(manual, cached), manual, cached_favs, start, &next));
+    if (next != start) save_rotation(p, next);
     start_championship_fix(p);
 
     if (!s.enabled || !s.xbox) return 0;
 
-    std::vector<std::string> fresh;
+    std::vector<std::string> fresh, fresh_favs;
     XboxMe me;
-    const bool got = fetch_xbox_friends(p, s, fresh, &me, profile_wants_gamerpic(p, s));
+    const bool got = fetch_xbox_friends(p, s, fresh, &me, profile_wants_gamerpic(p, s), &fresh_favs);
     apply_xbox_profile(p, s, me); // your own gamertag / gamerpic, if signed in
     if (!got) {
         log("keeping the saved friends list for now");
@@ -65,9 +72,10 @@ DWORD WINAPI run(LPVOID param) {
     }
     if (fresh.empty() && !cached.empty()) {
         log("Xbox Live returned nobody; keeping the saved friends list");
-    } else if (fresh != cached) {
-        save_cached_friends(p, fresh);
-        write_override(p, s, merge_names(manual, fresh));
+    } else if (fresh != cached || fresh_favs != cached_favs) {
+        save_cached_friends(p, fresh, fresh_favs);
+        std::size_t unused = 0;
+        write_override(p, s, pick_lineup(s, merge_names(manual, fresh), manual, fresh_favs, start, &unused));
         update_championship_names(p);
         log("friends list updated (shows in-game now if FH2 hadn't loaded Drivatars yet, otherwise "
             "next launch)");

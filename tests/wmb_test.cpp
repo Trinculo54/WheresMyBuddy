@@ -2,6 +2,7 @@
 //   wmb_test.exe <DefaultCache.bin>
 #include "common.hpp"
 #include <cstdio>
+#include <set>
 #include <fstream>
 
 using namespace wmb;
@@ -93,9 +94,43 @@ int main(int argc, char** argv) {
     CHECK(n[1] == L"BuddyOne" && n[2] == orig[2]);
 
     // friends cache round trip
-    save_cached_friends(p, {"A", "B c"});
-    auto c = read_cached_friends(p);
-    CHECK(c.size() == 2 && c[1] == "B c");
+    save_cached_friends(p, {"A", "B c"}, {"A"});
+    std::vector<std::string> favs;
+    auto c = read_cached_friends(p, &favs);
+    CHECK(c.size() == 2 && c[1] == "B c" && favs.size() == 1 && favs[0] == "A");
+
+    // rotation: 1 friends.txt name + 3 favourites + 28 others through 25 slots
+    {
+        Settings r = s;
+        r.max_names = 25; r.rotate = true; r.favorites_first = true;
+        std::vector<std::string> xbox, fv{"Fav1", "Fav2", "Fav3"};
+        for (auto& f : fv) xbox.push_back(f);
+        for (int i = 0; i < 28; ++i) xbox.push_back("Pal" + std::to_string(i));
+        const std::vector<std::string> man{"Hand"};
+        const auto merged = merge_names(man, xbox);
+        std::size_t next = 0;
+        auto a = pick_lineup(r, merged, man, fv, 0, &next);
+        CHECK(a.size() == 25 && a[0] == "Hand" && a[3] == "Fav3" && a[4] == "Pal0" && a[24] == "Pal20" && next == 21);
+        auto b = pick_lineup(r, merged, man, fv, next, &next);
+        CHECK(b.size() == 25 && b[3] == "Fav3" && b[4] == "Pal21" && b[10] == "Pal27" && b[11] == "Pal0" && next == 14);
+        // over a few launches everyone gets a turn
+        std::set<std::string> seen;
+        std::size_t at = 0;
+        for (int launch = 0; launch < 2; ++launch)
+            for (auto& n : pick_lineup(r, merged, man, fv, at, &at)) seen.insert(n);
+        CHECK(seen.size() == merged.size());
+        // off: always the first 25 (write_override takes the first max_names)
+        r.rotate = false;
+        CHECK(pick_lineup(r, merged, man, fv, 5, &next) == merged && next == 5);
+        // fewer friends than slots: nothing to rotate
+        r.rotate = true;
+        std::vector<std::string> few{"x", "y"};
+        CHECK(pick_lineup(r, few, {}, {}, 3, &next) == few);
+        // favourites alone fill the slots
+        r.max_names = 2;
+        auto f2 = pick_lineup(r, merged, man, fv, 0, &next);
+        CHECK(f2.size() == 2 && f2[0] == "Hand" && f2[1] == "Fav1");
+    }
 
     // friends.txt with comments/blank lines
     { std::ofstream f{p.data / "friends.txt"}; f << "\xEF\xBB\xBF# hi\n  Alice  \n\n#x\nBob\n"; }

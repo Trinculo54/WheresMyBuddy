@@ -39,6 +39,7 @@ struct Settings {
     int max_names         = 25;   // how many Drivatar names to replace (1..25)
     bool repeat_to_fill   = false; // reuse your names to fill every slot
     bool favorites_first  = true;
+    bool rotate           = true;  // more friends than slots: a different set each launch
     bool xbox             = true;
     bool browser_sign_in  = true;  // false: code at microsoft.com/link instead
     std::string client_id;        // Azure app (client) ID for Xbox sign-in
@@ -65,8 +66,20 @@ void write_ai_players(const Paths& p, const std::map<std::wstring, std::wstring>
 
 // ---- names ------------------------------------------------------------------
 std::vector<std::string> read_manual_names(const Paths& p);   // friends.txt
-std::vector<std::string> read_cached_friends(const Paths& p); // friends-cache.json
-void save_cached_friends(const Paths& p, const std::vector<std::string>& friends);
+// friends-cache.json: everyone, favourites first, plus which are favourites.
+std::vector<std::string> read_cached_friends(const Paths& p, std::vector<std::string>* favorites = nullptr);
+void save_cached_friends(const Paths& p, const std::vector<std::string>& friends,
+                         const std::vector<std::string>& favorites = {});
+
+// Rotation: with more names than max_names, friends.txt names and (with
+// favorites_first) Xbox favourites always stay in, and the rest take turns,
+// starting at `start` in that list. *next is where the next launch starts.
+std::vector<std::string> pick_lineup(const Settings& s, const std::vector<std::string>& merged,
+                                     const std::vector<std::string>& manual,
+                                     const std::vector<std::string>& favorites, std::size_t start,
+                                     std::size_t* next);
+std::size_t read_rotation(const Paths& p);      // rotation.ini
+void save_rotation(const Paths& p, std::size_t next);
 
 // Manual names first, then Xbox friends; de-duplicated, length-checked.
 std::vector<std::string> merge_names(const std::vector<std::string>& manual,
@@ -81,7 +94,8 @@ struct XboxMe {
     std::string gamerpic_url; // their gamerpic (only fetched when asked for)
 };
 bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out,
-                        XboxMe* me = nullptr, bool want_gamerpic = false);
+                        XboxMe* me = nullptr, bool want_gamerpic = false,
+                        std::vector<std::string>* favorites = nullptr);
 
 // ---- your own profile (profile.cpp) ------------------------------------------
 // Whether apply_xbox_profile has anything left to do (decides if the

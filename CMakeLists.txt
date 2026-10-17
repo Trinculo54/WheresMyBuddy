@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 # Bump VERSION before tagging a release (the tag build checks they match).
-project(wheresmybuddy VERSION 1.1.0 LANGUAGES C CXX RC)
+project(wheresmybuddy VERSION 1.2.0 LANGUAGES C CXX RC)
 # The FH2 Mod Loader this mod ships with (same loader in every FH2 mod).
 set(FH2_LOADER_VERSION 1.1.0)
 

@@ -56,7 +56,9 @@ Created on first launch. Changes apply the next time you start Azimuth.
   enabled=1          0 = mod off, original Drivatars come back
   max_names=25       how many of the 25 Drivatar names to replace
   repeat_to_fill=0   1 = reuse your names when you have fewer than max_names
-  favorites_first=1  your Xbox favourites go first
+  favorites_first=1  your Xbox favourites go first (and always stay in)
+  rotate=1           more friends than max_names: a different set each
+                     launch so everyone gets a turn; 0 = always the same
 
   [xbox]
   enabled=1          0 = don't sign in, only use friends.txt
