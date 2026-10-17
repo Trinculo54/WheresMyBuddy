@@ -30,7 +30,7 @@ When a newer WheresMyBuddy is out, the title screen tells you: "PRESS (A) TO STA
 
 ### Using it with other FH2 mods
 
-`d3dcompiler_47.dll` is the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), the shared base for FH2 mods. It loads every mod in the `fh2-mods` folder and handles the jobs they have in common, like changing the game's text and showing update notices, so mods don't trip over each other. Every mod built on it ships it, so you can install them in any order and let them overwrite it. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) 1.3.0 and later is built on it as well. Extra Options loads through `winmm.dll` and isn't affected. If the platform is missing or very old, WheresMyBuddy still renames the Drivatars, but car meet names and update notices are off until you reinstall it.
+`d3dcompiler_47.dll` is the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), the shared base for FH2 mods. It loads every mod in the `fh2-mods` folder and handles the jobs they have in common, like changing the game's text and showing update notices, so mods don't trip over each other. Every mod built on it ships it, so you can install them in any order and let them overwrite it. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) 1.3.0 and later is built on it as well. Extra Options loads through `winmm.dll` and isn't affected. If the platform is missing or very old, WheresMyBuddy still renames the Drivatars, but car meet names and update notices are off until you reinstall it. With platform 2.1.0 or later, the Drivatar file goes through the platform too, so removing WheresMyBuddy puts the original Drivatars back on its own, and other mods can ask WheresMyBuddy which names are on the Drivatars and who's signed in, through the `WheresMyBuddy.Friends` interface in [`include/wheresmybuddy.h`](include/wheresmybuddy.h).
 
 ## Settings
 
@@ -78,7 +78,7 @@ Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under 
 
 ## Troubleshooting
 
-Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `AI driver names (car meets, road trips): N swapped`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Platform writes `fh2-mods\platform.log`, which shows whether the mod was loaded at all, and which game text it wrote for it.
+Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `AI driver names (car meets, road trips): N swapped`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Platform writes `fh2-mods\platform.log`, which shows whether the mod was loaded at all, and which game text and files it wrote for it. If the game crashes, the platform saves a report in `fh2-mods\crashes` that says which mod, if any, was involved; attach it when you report a problem.
 
 | Symptom | Fix |
 |---|---|

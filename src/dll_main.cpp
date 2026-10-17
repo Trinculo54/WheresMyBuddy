@@ -1,5 +1,5 @@
 // WheresMyBuddy plugin entry (fh2-mods\WheresMyBuddy.dll), loaded by the
-// FH2 Mod Loader as Azimuth starts.
+// FH2 Mod Platform as Azimuth starts.
 //
 //   1. Right away: rebuild the Drivatar override from friends.txt plus the
 //      friends list saved last time. That's a ~1 MB file copy, done long
@@ -70,6 +70,7 @@ DWORD WINAPI run(LPVOID param) {
     XboxMe me;
     const bool got = fetch_xbox_friends(p, s, fresh, &me, profile_wants_gamerpic(p, s), &fresh_favs);
     apply_xbox_profile(p, s, me); // your own gamertag / gamerpic, if signed in
+    publish_signed_in_gamertag(me.gamertag);
     if (!got) {
         log("keeping the saved friends list for now");
         return 0;

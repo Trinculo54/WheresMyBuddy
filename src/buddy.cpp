@@ -1,6 +1,7 @@
 // Paths, settings, the Drivatar cache rewrite and the name lists.
 
 #include "common.hpp"
+#include "platform_link.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -249,6 +250,38 @@ bool replace_file(const fs::path& target, const std::vector<char>& d) {
     return true;
 }
 
+constexpr const char* kCacheMediaPath = "drivatarglobalcache/DefaultCache.bin";
+
+// The override goes through the platform's file overrides when it has them
+// (it then knows the file is ours, and cleans it up if WheresMyBuddy is
+// removed); with an older platform, straight to mediaoverride as before.
+bool store_override(const Paths& p, const std::vector<char>& d) {
+    const FH2ModApi* api = platform_v2();
+    if (!api) return replace_file(p.override_, d);
+    // Before the platform managed it, WheresMyBuddy wrote this file itself.
+    // Remove that copy once, so the platform doesn't keep it as a backup.
+    std::error_code ec;
+    const auto marker = p.data / "override-by-platform";
+    if (!fs::exists(marker, ec)) {
+        SetFileAttributesW(p.override_.c_str(), FILE_ATTRIBUTE_NORMAL);
+        fs::remove(p.override_, ec);
+        std::ofstream{marker} << "DefaultCache.bin in mediaoverride is written through the FH2 Mod Platform\n";
+    }
+    return api->set_file(platform_mod(), kCacheMediaPath, d.data(), d.size()) == 1;
+}
+
+void remove_override(const Paths& p) {
+    std::error_code ec;
+    bool removed = false;
+    if (const FH2ModApi* api = platform_v2()) {
+        removed = fs::exists(p.override_, ec);
+        api->clear_file(platform_mod(), kCacheMediaPath);
+    }
+    SetFileAttributesW(p.override_.c_str(), FILE_ATTRIBUTE_NORMAL);
+    if (fs::remove(p.override_, ec)) removed = true;
+    if (removed) log("removed the override; the original Drivatars are back");
+}
+
 } // namespace
 
 int write_override(const Paths& p, const Settings& s, const std::vector<std::string>& names) {
@@ -261,9 +294,9 @@ int write_override(const Paths& p, const Settings& s, const std::vector<std::str
     // Off, or nothing to use: remove our override and put the game's own
     // file back, so it uses the original Drivatars.
     if (!s.enabled || names.empty()) {
-        if (fs::remove(p.override_, ec))
-            log("removed the override; the original Drivatars are back");
+        remove_override(p);
         write_ai_players(p, {});
+        publish_drivatar_names({});
         return 0;
     }
 
@@ -314,7 +347,14 @@ int write_override(const Paths& p, const Settings& s, const std::vector<std::str
         }
     }
 
-    if (!replace_file(p.override_, d)) return -1;
+    if (!store_override(p, d)) return -1;
+    {
+        std::vector<std::string> placed;
+        for (const auto& r : repl)
+            if (!r.empty() && std::find(placed.begin(), placed.end(), to_utf8(r)) == placed.end())
+                placed.push_back(to_utf8(r));
+        publish_drivatar_names(placed);
+    }
 
     // The same names for the AI driver string table (car meets etc.);
     // "HRZN Ben" is only in there, so he gets the next name in line.
