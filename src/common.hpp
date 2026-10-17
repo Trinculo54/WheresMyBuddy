@@ -38,6 +38,7 @@ struct Settings {
     bool repeat_to_fill   = false; // reuse your names to fill every slot
     bool favorites_first  = true;
     bool xbox             = true;
+    bool browser_sign_in  = true;  // false: code at microsoft.com/link instead
     std::string client_id;        // Azure app (client) ID for Xbox sign-in
 };
 Settings load_settings(const Paths& p);

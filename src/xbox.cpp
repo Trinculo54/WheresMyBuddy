@@ -10,6 +10,7 @@
 //  4. peoplehub.xboxlive.com   /users/me/people/social -> people you follow
 
 #include "common.hpp"
+#include "signin_browser.hpp"
 
 #include <nlohmann/json.hpp>
 #include <shellapi.h>
@@ -180,6 +181,38 @@ bool device_code_sign_in(const Paths& p, const Settings& s, MsaTokens& out) {
     }
     log("sign-in code expired; you'll get a new one next launch");
     return false;
+}
+
+bool browser_code_sign_in(const Settings& s, const BrowserCode& bc, MsaTokens& out) {
+    const std::string body = "client_id=" + url_encode(s.client_id) +
+                             "&grant_type=authorization_code&code=" + url_encode(bc.code) +
+                             "&redirect_uri=" + url_encode(bc.redirect_uri) +
+                             "&code_verifier=" + url_encode(bc.verifier) + "&scope=" + url_encode(kScope);
+    const auto r = http_request(L"POST", std::wstring{kLogin} + L"token", kForm, body);
+    const auto j = parse(r);
+    out.access   = jstr(j, "access_token");
+    out.refresh  = jstr(j, "refresh_token");
+    if (r.status == 200 && !out.access.empty()) {
+        log("signed in to Microsoft");
+        return true;
+    }
+    log("sign-in didn't finish ({} {} {}{})", r.status, jstr(j, "error"),
+        jstr(j, "error_description").substr(0, 200), r.error.empty() ? "" : " " + r.error);
+    return false;
+}
+
+// Browser page first; the microsoft.com/link code if the browser route
+// can't start (or browser_sign_in=0).
+bool interactive_sign_in(const Paths& p, const Settings& s, MsaTokens& out) {
+    if (s.browser_sign_in) {
+        BrowserCode bc;
+        switch (browser_sign_in(s, kScope, bc)) {
+            case BrowserResult::Ok: return browser_code_sign_in(s, bc, out);
+            case BrowserResult::Failed: return false;
+            case BrowserResult::Unavailable: log("falling back to a sign-in code"); break;
+        }
+    }
+    return device_code_sign_in(p, s, out);
 }
 
 // ---- Xbox Live tokens --------------------------------------------------------------
@@ -367,7 +400,7 @@ bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::stri
     MsaTokens msa;
     const std::string saved = load_refresh_token(p);
     if (saved.empty() || !refresh_sign_in(s, saved, msa)) {
-        if (!device_code_sign_in(p, s, msa)) return false;
+        if (!interactive_sign_in(p, s, msa)) return false;
     }
     if (!msa.refresh.empty()) save_refresh_token(p, msa.refresh);
 

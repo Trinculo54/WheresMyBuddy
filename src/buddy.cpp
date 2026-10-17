@@ -85,6 +85,10 @@ constexpr const char* kDefaultIni =
     "; 1 = sign in to Xbox Live and use the people you follow.\r\n"
     "enabled=1\r\n"
     "\r\n"
+    "; 1 = sign in on the normal Microsoft page in your browser.\r\n"
+    "; 0 = get a code to enter at microsoft.com/link instead.\r\n"
+    "browser_sign_in=1\r\n"
+    "\r\n"
     "; Azure app (client) ID used for Microsoft sign-in.\r\n"
     "client_id=" WMB_DEFAULT_CLIENT_ID "\r\n";
 
@@ -126,6 +130,7 @@ Settings load_settings(const Paths& p) {
     s.repeat_to_fill  = ini_int(ini, L"names", L"repeat_to_fill", 0) != 0;
     s.favorites_first = ini_int(ini, L"names", L"favorites_first", 1) != 0;
     s.xbox            = ini_int(ini, L"xbox", L"enabled", 1) != 0;
+    s.browser_sign_in = ini_int(ini, L"xbox", L"browser_sign_in", 1) != 0;
     wchar_t id[128]{};
     GetPrivateProfileStringW(L"xbox", L"client_id", L"", id, 128, ini.c_str());
     s.client_id = trim(to_utf8(id));
