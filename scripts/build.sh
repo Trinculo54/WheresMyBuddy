@@ -4,6 +4,7 @@
 #   dist/fh2-mods/WheresMyBuddy.dll     the mod
 #   dist/README.txt
 #
+#   $ scripts/build.sh                          (built-in app ID)
 #   $ WMB_CLIENT_ID=<azure app id> scripts/build.sh
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -13,8 +14,10 @@ if [ ! -f "$root/third_party/nlohmann/nlohmann/json.hpp" ]; then
     curl -fsSL https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp \
         -o "$root/third_party/nlohmann/nlohmann/json.hpp"
 fi
+id_arg=()
+[ -n "${WMB_CLIENT_ID:-}" ] && id_arg=(-DWMB_CLIENT_ID="$WMB_CLIENT_ID")
 cmake -S "$root" -B "$root/build" -DCMAKE_TOOLCHAIN_FILE="$root/cmake/mingw-w64-x86_64.cmake" \
-      -DCMAKE_BUILD_TYPE=Release -DWMB_CLIENT_ID="${WMB_CLIENT_ID:-}"
+      -DCMAKE_BUILD_TYPE=Release "${id_arg[@]}"
 cmake --build "$root/build" -j "${JOBS:-$(nproc)}"
 rm -rf "$root/dist"
 mkdir -p "$root/dist/fh2-mods"

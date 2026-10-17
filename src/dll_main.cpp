@@ -51,7 +51,9 @@ DWORD WINAPI run(LPVOID param) {
         log("keeping the saved friends list for now");
         return 0;
     }
-    if (fresh != cached) {
+    if (fresh.empty() && !cached.empty()) {
+        log("Xbox Live returned nobody; keeping the saved friends list");
+    } else if (fresh != cached) {
         save_cached_friends(p, fresh);
         write_override(p, s, merge_names(manual, fresh));
         log("friends list updated (shows in-game now if FH2 hadn't loaded Drivatars yet, otherwise "

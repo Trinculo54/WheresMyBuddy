@@ -167,6 +167,7 @@ bool device_code_sign_in(const Paths& p, const Settings& s, MsaTokens& out) {
 
 struct Xsts {
     std::string token, uhs;
+    std::string gamertag, xuid; // who actually signed in
 };
 
 std::string xerr_text(const json& j) {
@@ -205,13 +206,127 @@ bool xbox_tokens(const std::string& access, Xsts& out) {
     const auto xj = parse(x);
     out.token     = jstr(xj, "Token");
     try {
-        out.uhs = xj.at("DisplayClaims").at("xui").at(0).at("uhs").get<std::string>();
+        const auto& xui = xj.at("DisplayClaims").at("xui").at(0);
+        out.uhs         = jstr(xui, "uhs");
+        out.gamertag    = jstr(xui, "gtg");
+        out.xuid        = jstr(xui, "xid");
     } catch (...) {}
     if (x.status != 200 || out.token.empty() || out.uhs.empty()) {
         const auto why = xerr_text(xj);
         log("Xbox Live authorization failed ({}{}{})", x.status, why.empty() ? "" : ": " + why,
             x.error.empty() ? "" : " " + x.error);
         return false;
+    }
+    log("signed in to Xbox Live as {}", out.gamertag.empty() ? std::string{"(gamertag not returned)"}
+                                                             : out.gamertag);
+    return true;
+}
+
+struct Person {
+    std::string tag;
+    bool favorite;
+};
+
+std::wstring xbl_auth(const Xsts& x) { return to_wide("XBL3.0 x=" + x.uhs + ";" + x.token); }
+
+std::string snippet(const std::string& body) {
+    std::string s = body.substr(0, 600);
+    for (char& c : s)
+        if (c == '\r' || c == '\n') c = ' ';
+    return s;
+}
+
+// The people hub: one call, gamertags included.
+bool people_hub(const Xsts& x, std::vector<Person>& people) {
+    const auto r = http_request(
+        L"GET", L"https://peoplehub.xboxlive.com/users/me/people/social/decoration/detail",
+        {{L"Authorization", xbl_auth(x)},
+         {L"x-xbl-contract-version", L"5"},
+         {L"Accept", L"application/json"},
+         {L"Accept-Language", L"en-US"}});
+    if (r.status != 200) {
+        log("people hub: {}{} {}", r.status, r.error.empty() ? "" : " " + r.error, snippet(r.body));
+        return false;
+    }
+    try {
+        for (const auto& person : json::parse(r.body).at("people")) {
+            std::string tag = jstr(person, "gamertag");
+            // New-style gamertags are "Name#1234"; the classic one is the
+            // same name without the suffix, which is what fits a Drivatar.
+            if (tag.empty() || to_wide(tag).size() > kMaxGamertag) tag = jstr(person, "modernGamertag");
+            if (tag.empty()) continue;
+            people.push_back({tag, person.value("isFavorite", false)});
+        }
+    } catch (const std::exception& e) {
+        log("people hub reply wasn't understood ({}): {}", e.what(), snippet(r.body));
+        return false;
+    }
+    if (people.empty()) log("people hub returned nobody: {}", snippet(r.body));
+    return true;
+}
+
+// Fallback: the social service lists who you follow (xuids only), then the
+// profile service turns those into gamertags.
+bool social_and_profile(const Xsts& x, std::vector<Person>& people) {
+    if (x.xuid.empty()) {
+        log("social: no xuid in the Xbox token, skipping");
+        return false;
+    }
+    const auto r = http_request(
+        L"GET", to_wide("https://social.xboxlive.com/users/xuid(" + x.xuid + ")/people?maxItems=1000"),
+        {{L"Authorization", xbl_auth(x)}, {L"x-xbl-contract-version", L"1"}, {L"Accept", L"application/json"}});
+    if (r.status != 200) {
+        log("social: {}{} {}", r.status, r.error.empty() ? "" : " " + r.error, snippet(r.body));
+        return false;
+    }
+    std::vector<std::pair<std::string, bool>> ids;
+    try {
+        for (const auto& person : json::parse(r.body).at("people")) {
+            std::string id = jstr(person, "xuid");
+            if (!id.empty()) ids.emplace_back(id, person.value("isFavorite", false));
+        }
+    } catch (const std::exception& e) {
+        log("social reply wasn't understood ({}): {}", e.what(), snippet(r.body));
+        return false;
+    }
+    log("social: you follow {} people", ids.size());
+    if (ids.empty()) {
+        log("social returned nobody: {}", snippet(r.body));
+        return true;
+    }
+
+    for (std::size_t at = 0; at < ids.size(); at += 100) {
+        json req{{"settings", json::array({"Gamertag", "ModernGamertag"})}, {"userIds", json::array()}};
+        for (std::size_t i = at; i < ids.size() && i < at + 100; ++i) req["userIds"].push_back(ids[i].first);
+        const auto pr = http_request(L"POST", L"https://profile.xboxlive.com/users/batch/profile/settings",
+                                     {{L"Authorization", xbl_auth(x)},
+                                      {L"x-xbl-contract-version", L"2"},
+                                      {L"Content-Type", L"application/json"},
+                                      {L"Accept", L"application/json"}},
+                                     req.dump());
+        if (pr.status != 200) {
+            log("profile: {}{} {}", pr.status, pr.error.empty() ? "" : " " + pr.error, snippet(pr.body));
+            return !people.empty();
+        }
+        try {
+            for (const auto& u : json::parse(pr.body).at("profileUsers")) {
+                std::string tag, modern;
+                for (const auto& st : u.at("settings")) {
+                    if (jstr(st, "id") == "Gamertag") tag = jstr(st, "value");
+                    if (jstr(st, "id") == "ModernGamertag") modern = jstr(st, "value");
+                }
+                if (tag.empty() || to_wide(tag).size() > kMaxGamertag) tag = modern;
+                if (tag.empty()) continue;
+                const std::string id = jstr(u, "id");
+                bool fav = false;
+                for (const auto& [xid, f] : ids)
+                    if (xid == id) fav = f;
+                people.push_back({tag, fav});
+            }
+        } catch (const std::exception& e) {
+            log("profile reply wasn't understood ({}): {}", e.what(), snippet(pr.body));
+            return !people.empty();
+        }
     }
     return true;
 }
@@ -237,34 +352,11 @@ bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::stri
     Xsts xsts;
     if (!xbox_tokens(msa.access, xsts)) return false;
 
-    const auto r = http_request(
-        L"GET", L"https://peoplehub.xboxlive.com/users/me/people/social/decoration/detail",
-        {{L"Authorization", to_wide("XBL3.0 x=" + xsts.uhs + ";" + xsts.token)},
-         {L"x-xbl-contract-version", L"5"},
-         {L"Accept", L"application/json"},
-         {L"Accept-Language", L"en-US"}});
-    if (r.status != 200) {
-        log("couldn't read your friends list ({}{})", r.status, r.error.empty() ? "" : " " + r.error);
-        return false;
-    }
-
-    struct Person {
-        std::string tag;
-        bool favorite;
-    };
     std::vector<Person> people;
-    try {
-        for (const auto& person : json::parse(r.body).at("people")) {
-            std::string tag = jstr(person, "gamertag");
-            // New-style gamertags are "Name#1234"; the classic one is the
-            // same name without the suffix, which is what fits a Drivatar.
-            if (tag.empty() || to_wide(tag).size() > kMaxGamertag) tag = jstr(person, "modernGamertag");
-            if (tag.empty()) continue;
-            people.push_back({tag, person.value("isFavorite", false)});
-        }
-    } catch (const std::exception& e) {
-        log("friends list response wasn't understood: {}", e.what());
-        return false;
+    const bool hub_ok = people_hub(xsts, people);
+    if (people.empty()) {
+        log("trying the social + profile services instead");
+        if (!social_and_profile(xsts, people) && !hub_ok) return false;
     }
     if (s.favorites_first)
         std::stable_partition(people.begin(), people.end(), [](const Person& x) { return x.favorite; });
