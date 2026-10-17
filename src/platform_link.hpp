@@ -20,6 +20,8 @@ const FH2ModApi* wait_for_platform(DWORD ms);
 FH2Mod* platform_mod();
 // The platform, if it's new enough for file overrides and interfaces (API 2).
 const FH2ModApi* platform_v2();
+// The platform, if it's new enough for hooks (API 3, platform 2.2).
+const FH2ModApi* platform_v3();
 
 // What the WheresMyBuddy.Friends interface hands out (wheresmybuddy.h).
 void publish_drivatar_names(const std::vector<std::string>& names);
