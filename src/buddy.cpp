@@ -92,6 +92,20 @@ constexpr const char* kDefaultIni =
     "; Azure app (client) ID used for Microsoft sign-in.\r\n"
     "client_id=" WMB_DEFAULT_CLIENT_ID "\r\n";
 
+constexpr const char* kProfileBlock =
+    "\r\n"
+    "[profile]\r\n"
+    "; Use your Xbox gamertag as your in-game name (Azimuth's player name)\r\n"
+    "; and your Xbox gamerpic as your avatar (Extra Options' Gamerpic.png).\r\n"
+    ";   once   = set it after your first sign-in, then leave it alone so you\r\n"
+    ";            can change it yourself in the Azimuth launcher\r\n"
+    ";   always = keep it matched to Xbox every launch\r\n"
+    ";   off    = never touch it\r\n"
+    "; To redo a \"once\", delete wheresmybuddy\\profile-applied.ini.\r\n"
+    "player_name=once\r\n"
+    "gamerpic=once\r\n";
+
+
 constexpr const char* kDefaultFriendsTxt =
     "# WheresMyBuddy: extra Drivatar names, one per line (max 15 characters).\r\n"
     "# These are used before your Xbox friends. Lines starting with # are ignored.\r\n";
@@ -119,7 +133,16 @@ Settings load_settings(const Paths& p) {
     std::error_code ec;
     fs::create_directories(p.data, ec);
     const auto ini_path = p.data / "WheresMyBuddy.ini";
-    if (!fs::exists(ini_path, ec)) std::ofstream{ini_path, std::ios::binary} << kDefaultIni;
+    if (!fs::exists(ini_path, ec)) {
+        std::ofstream{ini_path, std::ios::binary} << kDefaultIni << kProfileBlock;
+    } else {
+        // Inis written before [profile] existed get the new section added.
+        std::ifstream in{ini_path, std::ios::binary};
+        const std::string text((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+        if (text.find("[profile]") == std::string::npos)
+            std::ofstream{ini_path, std::ios::binary | std::ios::app} << kProfileBlock;
+    }
     if (!fs::exists(p.data / "friends.txt", ec))
         std::ofstream{p.data / "friends.txt", std::ios::binary} << kDefaultFriendsTxt;
 
@@ -134,6 +157,16 @@ Settings load_settings(const Paths& p) {
     wchar_t id[128]{};
     GetPrivateProfileStringW(L"xbox", L"client_id", L"", id, 128, ini.c_str());
     s.client_id = trim(to_utf8(id));
+    auto apply = [&](const wchar_t* key) {
+        wchar_t v[32]{};
+        GetPrivateProfileStringW(L"profile", key, L"once", v, 32, ini.c_str());
+        const std::wstring w = lower(to_wide(trim(to_utf8(v))));
+        if (w == L"off" || w == L"0" || w == L"never") return Settings::Apply::Off;
+        if (w == L"always" || w == L"2") return Settings::Apply::Always;
+        return Settings::Apply::Once;
+    };
+    s.player_name = apply(L"player_name");
+    s.gamerpic    = apply(L"gamerpic");
     // Blank in the ini (e.g. written by an older build) -> the built-in ID.
     if (s.client_id.empty()) s.client_id = WMB_DEFAULT_CLIENT_ID;
     return s;

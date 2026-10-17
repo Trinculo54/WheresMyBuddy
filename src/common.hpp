@@ -40,6 +40,10 @@ struct Settings {
     bool xbox             = true;
     bool browser_sign_in  = true;  // false: code at microsoft.com/link instead
     std::string client_id;        // Azure app (client) ID for Xbox sign-in
+    // [profile]: copy your gamertag / gamerpic into the game.
+    enum class Apply { Off, Once, Always };
+    Apply player_name = Apply::Once;
+    Apply gamerpic    = Apply::Once;
 };
 Settings load_settings(const Paths& p);
 
@@ -64,7 +68,20 @@ std::vector<std::string> merge_names(const std::vector<std::string>& manual,
 // Signs in (device code on first run, cached refresh token after) and returns
 // the gamertags of the people you follow, favourites first. Empty + logged
 // reason on failure.
-bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out);
+struct XboxMe {
+    std::string gamertag;     // classic gamertag of whoever signed in
+    std::string gamerpic_url; // their gamerpic (only fetched when asked for)
+};
+bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out,
+                        XboxMe* me = nullptr, bool want_gamerpic = false);
+
+// ---- your own profile (profile.cpp) ------------------------------------------
+// Whether apply_xbox_profile has anything left to do (decides if the
+// gamerpic URL is worth fetching).
+bool profile_wants_gamerpic(const Paths& p, const Settings& s);
+// Sets Azimuth's player_name and Extra Options' Gamerpic.png from your
+// Xbox profile, once (or every launch), per settings.
+void apply_xbox_profile(const Paths& p, const Settings& s, const XboxMe& me);
 
 // ---- HTTP (WinHTTP) ---------------------------------------------------------
 struct HttpResult {

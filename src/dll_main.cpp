@@ -8,6 +8,8 @@
 //      follow, save them, and rebuild the override if anything changed.
 //      If the game has already read the file by then, the new names show
 //      up next launch.
+//   3. Your own gamertag/gamerpic become your in-game name and avatar
+//      (once, by default; see profile.cpp).
 
 #include "common.hpp"
 
@@ -47,7 +49,10 @@ DWORD WINAPI run(LPVOID param) {
     if (!s.enabled || !s.xbox) return 0;
 
     std::vector<std::string> fresh;
-    if (!fetch_xbox_friends(p, s, fresh)) {
+    XboxMe me;
+    const bool got = fetch_xbox_friends(p, s, fresh, &me, profile_wants_gamerpic(p, s));
+    apply_xbox_profile(p, s, me); // your own gamertag / gamerpic, if signed in
+    if (!got) {
         log("keeping the saved friends list for now");
         return 0;
     }

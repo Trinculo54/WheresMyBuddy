@@ -386,11 +386,32 @@ bool social_and_profile(const Xsts& x, std::vector<Person>& people) {
     return true;
 }
 
+// Your own gamerpic, from the profile service.
+std::string own_gamerpic_url(const Xsts& x) {
+    if (x.xuid.empty()) return {};
+    const auto r = http_request(
+        L"GET",
+        to_wide("https://profile.xboxlive.com/users/xuid(" + x.xuid + ")/profile/settings?settings=GameDisplayPicRaw"),
+        {{L"Authorization", xbl_auth(x)}, {L"x-xbl-contract-version", L"2"}, {L"Accept", L"application/json"}});
+    if (r.status != 200) {
+        log("profile (gamerpic): {}{} {}", r.status, r.error.empty() ? "" : " " + r.error, snippet(r.body));
+        return {};
+    }
+    try {
+        const json body = json::parse(r.body);
+        for (const auto& st : body.at("profileUsers").at(0).at("settings"))
+            if (jstr(st, "id") == "GameDisplayPicRaw") return jstr(st, "value");
+    } catch (...) {}
+    log("profile (gamerpic) reply had no picture: {}", snippet(r.body));
+    return {};
+}
+
 } // namespace
 
 // ---- friends ---------------------------------------------------------------------
 
-bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out) {
+bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::string>& out, XboxMe* me,
+                        bool want_gamerpic) {
     out.clear();
     if (s.client_id.empty()) {
         log("Xbox sign-in skipped: no client_id set under [xbox] in WheresMyBuddy.ini");
@@ -406,6 +427,10 @@ bool fetch_xbox_friends(const Paths& p, const Settings& s, std::vector<std::stri
 
     Xsts xsts;
     if (!xbox_tokens(msa.access, xsts)) return false;
+    if (me) {
+        me->gamertag = xsts.gamertag;
+        if (want_gamerpic) me->gamerpic_url = own_gamerpic_url(xsts);
+    }
 
     std::vector<Person> people;
     const bool hub_ok = people_hub(xsts, people);
