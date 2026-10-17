@@ -16,6 +16,7 @@
 #include <wincrypt.h>
 
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <thread>
 
@@ -95,16 +96,34 @@ bool refresh_sign_in(const Settings& s, const std::string& refresh, MsaTokens& o
     return false;
 }
 
+bool copy_to_clipboard(const std::string& text) {
+    const std::wstring w = to_wide(text);
+    if (!OpenClipboard(nullptr)) return false;
+    bool ok = false;
+    EmptyClipboard();
+    if (HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, (w.size() + 1) * sizeof(wchar_t))) {
+        std::memcpy(GlobalLock(mem), w.c_str(), (w.size() + 1) * sizeof(wchar_t));
+        GlobalUnlock(mem);
+        ok = SetClipboardData(CF_UNICODETEXT, mem) != nullptr;
+        if (!ok) GlobalFree(mem);
+    }
+    CloseClipboard();
+    return ok;
+}
+
 void show_sign_in(const std::string& code, const std::string& url) {
-    // Prefill the code on microsoft.com/link; the dialog is a fallback and
-    // runs on its own thread so it never blocks the game.
-    const std::wstring link = to_wide(url + "?otc=" + code);
-    ShellExecuteW(nullptr, L"open", link.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-    std::thread([code, url] {
+    // Open the plain page: the prefilled "?otc=" link fails with a
+    // "first party application" consent error, typing the code works.
+    // The code goes on the clipboard so it's just Ctrl+V. The dialog runs
+    // on its own thread so it never blocks the game.
+    const bool copied = copy_to_clipboard(code);
+    ShellExecuteW(nullptr, L"open", to_wide(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    std::thread([code, url, copied] {
         const std::wstring msg =
             L"WheresMyBuddy wants to use your Xbox friends as Forza Horizon 2 Drivatars.\n\n"
-            L"A browser window has opened. If it didn't, go to\n    " +
-            to_wide(url) + L"\nand enter the code\n\n    " + to_wide(code) +
+            L"A browser window has opened at\n    " +
+            to_wide(url) + L"\nEnter this code there" +
+            (copied ? L" (it's already copied, just press Ctrl+V)" : L"") + L":\n\n    " + to_wide(code) +
             L"\n\nSign in with the Microsoft account you use on Xbox. You only need to do this once.\n"
             L"(Set enabled=0 under [xbox] in wheresmybuddy\\WheresMyBuddy.ini to stop this.)";
         MessageBoxW(nullptr, msg.c_str(), L"WheresMyBuddy: sign in to Xbox",
