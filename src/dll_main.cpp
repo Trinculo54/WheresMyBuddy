@@ -12,7 +12,7 @@
 //      (once, by default; see profile.cpp).
 
 #include "common.hpp"
-#include "fh2_updates.hpp"
+#include "platform_link.hpp"
 
 #include <filesystem>
 
@@ -43,10 +43,14 @@ DWORD WINAPI run(LPVOID param) {
 
     const Settings s = load_settings(p);
 
-    // Version / update notice on the title screen (background).
-    fh2common::start_update_check({L"WheresMyBuddy", L"WheresMyBuddy.dll", WMB_VERSION, "Trinculo54/WheresMyBuddy",
-                                   FH2_LOADER_VERSION, p.azimuth, s.check_updates,
-                                   [](const std::string& m) { log("{}", m); }});
+    // The FH2 Mod Platform registers us (update notices etc.) from
+    // fh2mod_init, a moment after loading us.
+    if (const FH2ModApi* api = wait_for_platform(5000))
+        log("FH2 Mod Platform {}", api->platform_version);
+    else
+        log("WARNING: no FH2 Mod Platform (an old FH2 Mod Loader is installed?); reinstall WheresMyBuddy to "
+            "get it. Car meet names and update notices are off until then");
+
     const auto manual = read_manual_names(p);
     std::vector<std::string> cached_favs;
     auto cached = read_cached_friends(p, &cached_favs);

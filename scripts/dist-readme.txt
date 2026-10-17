@@ -41,10 +41,10 @@ The first launch only fetches your friends because the game reads its
 Drivatar list before the sign-in can finish. From then on the saved list
 is used straight away and refreshed in the background every launch.
 
-d3dcompiler_47.dll is the FH2 Mod Loader. It loads every mod in the
-fh2-mods folder, and every mod that uses it ships the same file, so it's
-fine to overwrite. FH2 Universal Radio 1.0.x shipped its own
-d3dcompiler_47.dll; if you use the radio too, update it to 1.1.0 or later.
+d3dcompiler_47.dll is the FH2 Mod Platform, the shared base for FH2 mods
+(https://github.com/Trinculo54/FH2-Mod-Platform). It loads every mod in
+fh2-mods, and every mod built on it ships the same file, so it's fine to
+overwrite. If you use FH2 Universal Radio too, keep it on 1.3.0 or later.
 
 
 Settings (wheresmybuddy\WheresMyBuddy.ini)
@@ -76,7 +76,7 @@ Created on first launch. Changes apply the next time you start Azimuth.
                      Delete profile-applied.ini to do it again.
 
 When a newer version is out, the title screen says so after
-"PRESS (A) TO START". It also tells you if the FH2 Mod Loader
+"PRESS (A) TO START". It also tells you if the FH2 Mod Platform
 (d3dcompiler_47.dll) is older than the one this mod came with; reinstall
 WheresMyBuddy to fix that.
 
@@ -103,7 +103,7 @@ launch). Useful lines:
   signed in to Xbox Live as <you>      the sign-in works
   got N people from Xbox Live          your friends list arrived
   wrote ... with N of 25 Drivatar names replaced
-  wrote AI driver names (car meets, ...)  car meet / road trip names too
+  AI driver names (car meets, ...)      car meet / road trip names too
   championship Drivatar X -> Y          an older championship got renamed
                                        the Drivatar list was rewritten
 
@@ -111,7 +111,7 @@ Still the old names: launch a second time, and check that Extra Options is
 installed with EnableMediaOverrides=1 (the log warns if it isn't).
 Wrong account: delete wheresmybuddy\account.dat and launch again.
 Microsoft error page in the browser: set browser_sign_in=0.
-No wheresmybuddy folder at all: check fh2-mods\loader.log.
+No wheresmybuddy folder at all: check fh2-mods\platform.log.
 
 
 Uninstall

@@ -26,11 +26,11 @@ The game reads its Drivatar list very early, usually before the sign-in finishes
 
 ### Updates
 
-When a newer WheresMyBuddy is out, the title screen tells you: "PRESS (A) TO START" gets a note like "WheresMyBuddy 1.2.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches. If another mod has put back an older FH2 Mod Loader than the one WheresMyBuddy came with, the title screen says that too, and reinstalling WheresMyBuddy fixes it. Other mods that use the loader, like FH2 Universal Radio, put their notes in the same spot. The version you have is in the first line of the log and in the DLL's file properties.
+When a newer WheresMyBuddy is out, the title screen tells you: "PRESS (A) TO START" gets a note like "WheresMyBuddy 1.2.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches. If another mod has put back an older FH2 Mod Platform than the one WheresMyBuddy came with, the title screen says that too, and reinstalling WheresMyBuddy fixes it. Other mods on the platform, like FH2 Universal Radio, put their notes in the same spot. The version you have is in the first line of the log and in the DLL's file properties.
 
 ### Using it with other FH2 mods
 
-`d3dcompiler_47.dll` is the FH2 Mod Loader. All it does is load every mod in the `fh2-mods` folder, and every mod that uses it ships the same file, so you can install them in any order and overwrite it freely. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) uses it from version 1.1.0. Older versions of the radio came with their own `d3dcompiler_47.dll`, so update the radio as well if you use both. Extra Options loads through `winmm.dll` and isn't affected.
+`d3dcompiler_47.dll` is the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), the shared base for FH2 mods. It loads every mod in the `fh2-mods` folder and handles the jobs they have in common, like changing the game's text and showing update notices, so mods don't trip over each other. Every mod built on it ships it, so you can install them in any order and let them overwrite it. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) 1.3.0 and later is built on it as well. Extra Options loads through `winmm.dll` and isn't affected. If the platform is missing or very old, WheresMyBuddy still renames the Drivatars, but car meet names and update notices are off until you reinstall it.
 
 ## Settings
 
@@ -64,7 +64,7 @@ The Xbox side is the standard chain a PC app uses: a Microsoft account sign-in t
 
 ## Build from source
 
-The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases) and CMake. On Linux:
+The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases) and CMake, on top of the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), which is a git submodule in `platform/`. Clone with `--recursive`, or run `git submodule update --init`; the build script does it for you if it's missing. On Linux:
 
 ```bash
 ./scripts/build.sh
@@ -74,15 +74,15 @@ The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releas
 
 The release build has the WheresMyBuddy Azure app ID built in. If you fork this, you can use your own: register an app in the [Azure portal](https://portal.azure.com) under App registrations, choose "Personal Microsoft accounts only", add `http://localhost` as a redirect URI under the "Mobile and desktop applications" platform, and turn on "Allow public client flows". Then either build with `WMB_CLIENT_ID=<your app id> ./scripts/build.sh` or put the ID in `client_id` in the ini.
 
-Configuring with `-DWMB_TESTS=ON` also builds five offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin` and any string table zips you pass it. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect. `updates_test` checks the version comparison, the loader version check and the title-screen notices.
+Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin`. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
 
 ## Troubleshooting
 
-Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `wrote AI driver names (car meets, road trips) for N languages`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Loader writes `fh2-mods\loader.log`, which shows whether the mod was loaded at all.
+Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `AI driver names (car meets, road trips): N swapped`, `championship fix installed`, `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Platform writes `fh2-mods\platform.log`, which shows whether the mod was loaded at all, and which game text it wrote for it.
 
 | Symptom | Fix |
 |---|---|
-| Nothing happens and there's no `wheresmybuddy` folder | Make sure `d3dcompiler_47.dll` is next to `azimuth.exe` and `WheresMyBuddy.dll` is inside `fh2-mods`, then check `fh2-mods\loader.log`. |
+| Nothing happens and there's no `wheresmybuddy` folder | Make sure `d3dcompiler_47.dll` is next to `azimuth.exe` and `WheresMyBuddy.dll` is inside `fh2-mods`, then check `fh2-mods\platform.log`. |
 | Drivatars still have their old names | Launch the game a second time, since the first launch only fetches your friends. If they're still old, check that Extra Options is installed with `EnableMediaOverrides=1`. The log warns about both. |
 | The browser shows a Microsoft error page | Set `browser_sign_in=0` and use the code at microsoft.com/link instead, and open an issue with a screenshot of the error. |
 | `Xbox Live authorization failed` | The log says why. Usually the account has no Xbox profile yet, or it's a child account that needs to be added to a Microsoft family. |
