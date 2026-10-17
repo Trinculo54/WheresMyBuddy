@@ -129,6 +129,8 @@ Settings load_settings(const Paths& p) {
     wchar_t id[128]{};
     GetPrivateProfileStringW(L"xbox", L"client_id", L"", id, 128, ini.c_str());
     s.client_id = trim(to_utf8(id));
+    // Blank in the ini (e.g. written by an older build) -> the built-in ID.
+    if (s.client_id.empty()) s.client_id = WMB_DEFAULT_CLIENT_ID;
     return s;
 }
 

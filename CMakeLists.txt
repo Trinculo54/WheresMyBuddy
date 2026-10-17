@@ -12,7 +12,7 @@ endif()
 
 # Azure app (client) ID for Microsoft sign-in, baked into the default
 # WheresMyBuddy.ini. Public client ID, not a secret.
-set(WMB_CLIENT_ID "" CACHE STRING "Azure app (client) ID used for Xbox sign-in")
+set(WMB_CLIENT_ID "12864041-3b5d-477c-b77c-b058dbb68ba0" CACHE STRING "Azure app (client) ID used for Xbox sign-in")
 
 add_compile_definitions(_WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 if(MSVC)
