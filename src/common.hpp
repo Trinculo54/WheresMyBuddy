@@ -83,6 +83,14 @@ bool profile_wants_gamerpic(const Paths& p, const Settings& s);
 // Xbox profile, once (or every launch), per settings.
 void apply_xbox_profile(const Paths& p, const Settings& s, const XboxMe& me);
 
+// ---- championships (championship.cpp) ---------------------------------------
+// Renames the Drivatars saved with a championship (which don't come from the
+// override) to match the current Drivatar list. Installs itself once the
+// game has been mapped.
+void start_championship_fix(const Paths& p);
+// Call after rewriting the override so later loads use the new names.
+void update_championship_names(const Paths& p);
+
 // ---- HTTP (WinHTTP) ---------------------------------------------------------
 struct HttpResult {
     int status = 0;

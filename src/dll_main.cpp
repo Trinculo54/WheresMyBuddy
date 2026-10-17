@@ -45,6 +45,7 @@ DWORD WINAPI run(LPVOID param) {
     auto cached       = read_cached_friends(p);
     log("{} name(s) from friends.txt, {} saved Xbox friend(s)", manual.size(), cached.size());
     write_override(p, s, merge_names(manual, cached));
+    start_championship_fix(p);
 
     if (!s.enabled || !s.xbox) return 0;
 
@@ -61,6 +62,7 @@ DWORD WINAPI run(LPVOID param) {
     } else if (fresh != cached) {
         save_cached_friends(p, fresh);
         write_override(p, s, merge_names(manual, fresh));
+        update_championship_names(p);
         log("friends list updated (shows in-game now if FH2 hadn't loaded Drivatars yet, otherwise "
             "next launch)");
     } else {

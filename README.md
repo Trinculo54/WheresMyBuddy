@@ -50,6 +50,8 @@ If you want to revoke the mod's Xbox access as well, remove WheresMyBuddy from t
 
 FH2 keeps its Drivatars in `media\DrivatarGlobalCache\DefaultCache.bin`, a list of 125 driver records that only use 25 different gamertags between them. Each record keeps its gamertag as UTF-16 text in a fixed 16-character field. When Azimuth starts, the mod copies that file into Extra Options' `mediaoverride` folder and rewrites the name fields, leaving everything else in every record untouched. Extra Options makes the game load the override instead of the original.
 
+Championships work a little differently. When you start one, the game copies the Drivatars it picked into your save, and every race of that championship loads them from there instead of from the Drivatar list, so a championship started before you installed the mod would still have the old names. Each of those saved Drivatars carries the same id (1 to 25) it has in `DefaultCache.bin`, so when the game loads them, the mod gives each one the name that id has in the Drivatar list right now. It does this in memory after the game reads your save. The save file itself is never edited, and it simply picks up the new names the next time the game saves.
+
 The Xbox side is the standard chain a PC app uses: a Microsoft account sign-in through the identity platform's consumer endpoint (authorization code with PKCE and a `localhost` redirect, or the device code flow as the fallback), then an Xbox Live user token, then an XSTS token, then the Xbox people hub for your friends list. Your own name goes into `player_name` in Azimuth's `data\azimuth.ini`, and your gamerpic comes from the Xbox profile service and is saved as Extra Options' `Gamerpic.png`.
 
 ## Build from source
