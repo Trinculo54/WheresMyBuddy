@@ -268,7 +268,8 @@ bool people_hub(const Xsts& x, std::vector<Person>& people) {
         return false;
     }
     try {
-        for (const auto& person : json::parse(r.body).at("people")) {
+        const json body = json::parse(r.body);
+        for (const auto& person : body.at("people")) {
             std::string tag = jstr(person, "gamertag");
             // New-style gamertags are "Name#1234"; the classic one is the
             // same name without the suffix, which is what fits a Drivatar.
@@ -300,7 +301,8 @@ bool social_and_profile(const Xsts& x, std::vector<Person>& people) {
     }
     std::vector<std::pair<std::string, bool>> ids;
     try {
-        for (const auto& person : json::parse(r.body).at("people")) {
+        const json body = json::parse(r.body);
+        for (const auto& person : body.at("people")) {
             std::string id = jstr(person, "xuid");
             if (!id.empty()) ids.emplace_back(id, person.value("isFavorite", false));
         }
@@ -328,7 +330,8 @@ bool social_and_profile(const Xsts& x, std::vector<Person>& people) {
             return !people.empty();
         }
         try {
-            for (const auto& u : json::parse(pr.body).at("profileUsers")) {
+            const json body = json::parse(pr.body);
+            for (const auto& u : body.at("profileUsers")) {
                 std::string tag, modern;
                 for (const auto& st : u.at("settings")) {
                     if (jstr(st, "id") == "Gamertag") tag = jstr(st, "value");
