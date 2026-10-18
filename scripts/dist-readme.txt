@@ -51,6 +51,8 @@ Settings (wheresmybuddy\WheresMyBuddy.ini)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Created on first launch. Changes apply the next time you start Azimuth.
+The main on/off switches are also in the game, under Pause > Settings >
+MODS (the game offers to restart for you when you change one).
 
   [names]
   enabled=1          0 = mod off, original Drivatars come back

@@ -44,6 +44,8 @@ Under `[profile]`, `player_name` and `gamerpic` can each be `once`, `always` or 
 
 Under `[updates]`, `check` set to 0 stops the mod from asking GitHub whether there's a newer version.
 
+With FH2 Mod Platform 2.3.0 or later, the main switches are also in the game, under Pause > Settings > MODS: friends as Drivatars (`[names] enabled`), Xbox Live friends (`[xbox] enabled`), favourites first, friends taking turns (`rotate`) and filling every Drivatar (`repeat_to_fill`). Changing them there saves them to the ini. Since the Drivatars are written when the game starts, the game offers to restart when you leave the page.
+
 `friends.txt` takes one name per line. Gamertags are limited to 15 characters, the same as on the Xbox One, and longer ones are skipped.
 
 ## Uninstall

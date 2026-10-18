@@ -79,6 +79,57 @@ void publish_signed_in_gamertag(const std::string& gamertag) {
 
 } // namespace wmb
 
+namespace {
+
+// ---- the Mods page (Pause > Settings > MODS, platform 2.3.0 / API 4) ----------------------
+// The names switches, as On/Off rows. The Drivatars are written when the game starts, so
+// every change takes a restart (the game offers one when the player leaves the page).
+// A change is saved to WheresMyBuddy.ini straight away.
+struct ModsRow {
+    const char* key;          // the row's key on the page
+    const wchar_t* section;   // where it lives in WheresMyBuddy.ini
+    const wchar_t* ini_key;
+    int def;
+    const char* label;
+    const char* description;
+};
+const ModsRow kModsRows[] = {
+    {"names_enabled", L"names", L"enabled", 1, "Friends as Drivatars",
+     "Your Xbox friends, and the names in wheresmybuddy\\friends.txt, race as the game's Drivatars. Off puts the original Drivatars back."},
+    {"xbox_enabled", L"xbox", L"enabled", 1, "Xbox Live friends",
+     "Sign in to Xbox Live and use the people you follow. Off uses only the names in friends.txt."},
+    {"favorites_first", L"names", L"favorites_first", 1, "Favourites first",
+     "Your Xbox favourites go to the front of the line, and always stay in when friends take turns."},
+    {"rotate", L"names", L"rotate", 1, "Friends take turns",
+     "With more friends than Drivatars, a different set races each launch; favourites and friends.txt names always stay in. Off always uses the same ones."},
+    {"repeat_to_fill", L"names", L"repeat_to_fill", 0, "Fill every Drivatar",
+     "With fewer friends than Drivatars, your friends' names fill the rest too. Off keeps the original names there."},
+};
+std::wstring g_ini;
+
+void mods_row_changed(void* user, const char*, int value) {
+    const auto* r = static_cast<const ModsRow*>(user);
+    WritePrivateProfileStringW(r->section, r->ini_key, value ? L"1" : L"0", g_ini.c_str());
+}
+
+void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
+    if (api->api_version < 4 || !mod) return;   // an older platform: no Mods page
+    for (const ModsRow& r : kModsRows) {
+        FH2Setting s{};
+        s.size          = sizeof s;
+        s.key           = r.key;
+        s.label         = r.label;
+        s.description   = r.description;
+        s.value         = GetPrivateProfileIntW(r.section, r.ini_key, r.def, g_ini.c_str()) != 0;
+        s.needs_restart = 1;
+        s.on_change     = mods_row_changed;
+        s.user          = const_cast<ModsRow*>(&r);
+        api->add_setting(mod, &s);
+    }
+}
+
+} // namespace
+
 FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     if (!api || api->api_version < 1) return 1;
     // [updates] check in our ini; read here directly since the rest of the
@@ -94,6 +145,8 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     g_mod = api->register_mod(&info);
     g_api = api;
     if (api->api_version >= 2 && g_mod) api->publish_interface(g_mod, WHERESMYBUDDY_FRIENDS, 1, &g_friends);
+    g_ini = ini;
+    add_mods_rows(api, g_mod);
     if (g_ready) SetEvent(g_ready);
     return g_mod ? 0 : 1;
 }
