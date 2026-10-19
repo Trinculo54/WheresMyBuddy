@@ -1,9 +1,10 @@
 // Offline test of the championship fix against the real game code.
-//   championship_test <fh2.exe> <DefaultCache.bin> [<BinarySaveState>|-] [platform]
+//   championship_test <fh2.exe> <DefaultCache.bin> [<BinarySaveState>|-] [fh2ml]
 // Without a save, the state holds 11 records copied from DefaultCache.bin
-// with a few bytes changed, as saved copies have. "platform" runs it as on
-// platform 2.2+, through a stand-in for the platform's hook API (the real
-// one is tested on this same vtable slot in the platform's hook test).
+// with a few bytes changed, as saved copies have. "fh2ml" runs it as under
+// FH2ML, through a stand-in for FH2ML's services (connect_fh2ml with a fake
+// context: the hook, the Mods-page rows and the one-time import of the old
+// <Azimuth>\wheresmybuddy folder).
 // Maps the exe at its preferred base (like Azimuth), lets the fix find it and
 // patch ChampionshipDrivatarsState's vtable, then calls Serialize through the
 // patched slot in "saving" mode with a fake archive (which only needs the
@@ -59,33 +60,37 @@ static std::wstring name_at(const char* rec) {
     return n;
 }
 
-extern "C" int fh2mod_init(const FH2ModApi* api); // platform_link.cpp
-
-// A stand-in for the platform (API 3): hook_pointer and enable_hooks swap
-// the slot the way the platform does, with `original` the old pointer.
+// A stand-in for FH2ML: HookPointer and EnableHooks swap the slot the way
+// FH2ML does, with `original` the old pointer.
 static void** g_hook_slot;
 static void* g_hook_detour;
-static int g_hooks_made, g_code_waits;
-static FH2ModApi fake_api() {
-    FH2ModApi a{};
-    a.size             = sizeof a;
-    a.api_version      = 3;
-    a.platform_version = "2.2.0";
-    a.azimuth_dir      = L".";
-    a.game_dir         = L"";
-    a.register_mod     = [](const FH2ModInfo*) { return reinterpret_cast<FH2Mod*>(0x1000); };
-    a.log              = [](FH2Mod*, const char*) {};
-    a.publish_interface = [](FH2Mod*, const char*, uint32_t, const void*) {};
-    a.wait_for_code    = [](uint32_t) -> void* { ++g_code_waits; return reinterpret_cast<void*>(0x140000000); };
-    a.hook_pointer     = [](FH2Mod* m, const char*, void** slot, void* detour, void** original) -> FH2Hook* {
+static int g_hooks_made, g_code_waits, g_rows, g_interfaces;
+static FH2ML_Services_v4 fake_services() {
+    FH2ML_Services_v4 a{};
+    a.size              = sizeof a;
+    a.version           = FH2ML_API_VERSION_V4;
+    a.runtime_version   = "0.2.0";
+    a.azimuth_directory = L".";
+    a.game_directory    = L"";
+    a.Log               = [](FH2ML_Mod*, const char*) {};
+    a.PublishInterface  = [](FH2ML_Mod*, const char* name, uint32_t, const void* iface) {
+        if (name && iface) ++g_interfaces;
+    };
+    a.AddSetting = [](FH2ML_Mod*, const FH2ML_Setting* s) {
+        if (!s || s->size != sizeof *s || !s->key || !s->on_change) return 0;
+        ++g_rows;
+        return 1;
+    };
+    a.WaitForCode = [](uint32_t) -> void* { ++g_code_waits; return reinterpret_cast<void*>(0x140000000); };
+    a.HookPointer = [](FH2ML_Mod* m, const char*, void** slot, void* detour, void** original) -> FH2ML_Hook* {
         if (!m) return nullptr;
         ++g_hooks_made;
         g_hook_slot   = slot;
         g_hook_detour = detour;
         *original     = *slot;
-        return reinterpret_cast<FH2Hook*>(0x2000);
+        return reinterpret_cast<FH2ML_Hook*>(0x2000);
     };
-    a.enable_hooks = [](FH2Mod*, FH2Hook*) {
+    a.EnableHooks = [](FH2ML_Mod*, FH2ML_Hook*) {
         DWORD old = 0;
         VirtualProtect(g_hook_slot, 8, PAGE_READWRITE, &old);
         *g_hook_slot = g_hook_detour;
@@ -97,17 +102,34 @@ static FH2ModApi fake_api() {
 
 int wmain(int argc, wchar_t** argv) {
     if (argc < 3) return 2;
-    const bool with_platform = argc > 4 && std::wstring{argv[4]} == L"platform";
-    static FH2ModApi api = fake_api();
-    if (with_platform) {
-        CHECK(fh2mod_init(&api) == 0);
-        CHECK(wait_for_platform(0) == &api && platform_v3() == &api);
-    } else {
-        CHECK(wait_for_platform(0) == nullptr);
-    }
-    log_open("championship_test.log");
+    const bool with_fh2ml = argc > 4 && std::wstring{argv[4]} == L"fh2ml";
     fs::path root = fs::temp_directory_path() / "wmb_champ_test";
     std::error_code ec; fs::remove_all(root, ec); fs::create_directories(root);
+    static FH2ML_Services_v4 services = fake_services();
+    if (with_fh2ml) {
+        // Files from before FH2ML, in <Azimuth>\wheresmybuddy, for the one-time import.
+        static const std::wstring azimuth = (root / "azimuth").wstring(), data = (root / "data").wstring();
+        fs::create_directories(root / "azimuth" / "wheresmybuddy");
+        fs::create_directories(root / "data");
+        { std::ofstream o{root / "azimuth" / "wheresmybuddy" / "friends.txt"}; o << "Hand\n"; }
+        { std::ofstream o{root / "data" / "rotation.ini"}; o << "[rotation]\nnext=3\n"; }
+        { std::ofstream o{root / "azimuth" / "wheresmybuddy" / "rotation.ini"}; o << "[rotation]\nnext=9\n"; }
+        services.azimuth_directory = azimuth.c_str();
+        static const FH2ML_ModContext_v4 context{sizeof(FH2ML_ModContext_v4), FH2ML_API_VERSION_V4, &services,
+                                                 reinterpret_cast<FH2ML_Mod*>(0x1000), "wheresmybuddy", L"",
+                                                 data.c_str()};
+        CHECK(connect_fh2ml(&context));
+        CHECK(fh2ml() && fh2ml()->S == &services && fh2ml()->data == data);
+        CHECK(g_interfaces == 1 && g_rows == 5);
+        CHECK(fs::exists(root / "data" / "friends.txt")); // brought over
+        CHECK(GetPrivateProfileIntW(L"rotation", L"next", 0, (root / "data" / "rotation.ini").wstring().c_str()) == 3); // ours won
+        // The next launch doesn't bring it over again.
+        fs::remove(root / "data" / "friends.txt", ec);
+        CHECK(connect_fh2ml(&context) && !fs::exists(root / "data" / "friends.txt"));
+    } else {
+        CHECK(fh2ml() == nullptr);
+    }
+    log_open("championship_test.log");
     Paths p; p.azimuth = root; p.data = root;
     p.original = root / "orig.bin"; p.override_ = root / "override.bin";
     fs::copy_file(argv[2], p.original, fs::copy_options::overwrite_existing);
@@ -134,7 +156,7 @@ int wmain(int argc, wchar_t** argv) {
     start_championship_fix(p);
     for (int i = 0; i < 50 && *slot == original; ++i) Sleep(100);
     CHECK(*slot != original);
-    if (with_platform) CHECK(g_hooks_made == 1 && g_code_waits == 1 && g_hook_slot == slot);
+    if (with_fh2ml) CHECK(g_hooks_made == 1 && g_code_waits == 1 && g_hook_slot == slot);
 
     // State object as the game lays it out: count at +0x1C, vector at +0x20.
     const int count = 11;

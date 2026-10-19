@@ -19,15 +19,10 @@ using json   = nlohmann::json;
 
 // ---- paths --------------------------------------------------------------------
 
-Paths find_paths(HMODULE self) {
+Paths find_paths(const fs::path& azimuth, const fs::path& data) {
     Paths p;
-    wchar_t buf[MAX_PATH]{};
-    GetModuleFileNameW(self, buf, MAX_PATH);
-    fs::path dir     = fs::path{buf}.parent_path();
-    std::wstring leaf = dir.filename().wstring();
-    for (auto& c : leaf) c = static_cast<wchar_t>(towlower(c));
-    p.azimuth = leaf == L"fh2-mods" ? dir.parent_path() : dir;
-    p.data    = p.azimuth / "wheresmybuddy";
+    p.azimuth = azimuth;
+    p.data    = data;
 
     // Azimuth keeps the game folder in data\azimuth.ini (UTF-16):
     //   [title-1a96545b] folder=FH2   -> <folder>\Mount is game:\ .
@@ -98,6 +93,7 @@ constexpr const char* kDefaultIni =
     "; Azure app (client) ID used for Microsoft sign-in.\r\n"
     "client_id=" WMB_DEFAULT_CLIENT_ID "\r\n";
 
+#define WMB_REDO_ONCE "; To redo a \"once\", delete FH2ML\\data\\wheresmybuddy\\profile-applied.ini."
 constexpr const char* kProfileBlock =
     "\r\n"
     "[profile]\r\n"
@@ -107,17 +103,11 @@ constexpr const char* kProfileBlock =
     ";            can change it yourself in the Azimuth launcher\r\n"
     ";   always = keep it matched to Xbox every launch\r\n"
     ";   off    = never touch it\r\n"
-    "; To redo a \"once\", delete wheresmybuddy\\profile-applied.ini.\r\n"
+    WMB_REDO_ONCE "\r\n"
     "player_name=once\r\n"
     "gamerpic=once\r\n";
-
-
-constexpr const char* kUpdatesBlock =
-    "\r\n"
-    "[updates]\r\n"
-    "; 1 = check GitHub for a newer WheresMyBuddy (at most every 6 hours) and\r\n"
-    "; say so on the title screen. 0 = never go online for this.\r\n"
-    "check=1\r\n";
+// What that line said when the ini lived in <Azimuth>\wheresmybuddy.
+constexpr std::string_view kOldRedoOnce = "; To redo a \"once\", delete wheresmybuddy\\profile-applied.ini.";
 
 constexpr const char* kDefaultFriendsTxt =
     "# WheresMyBuddy: extra Drivatar names, one per line (max 15 characters).\r\n"
@@ -140,6 +130,48 @@ std::wstring lower(std::wstring s) {
     return s;
 }
 
+// Inis from before FH2ML (brought over from <Azimuth>\wheresmybuddy): [updates] goes,
+// since FH2ML decides update checks now (FH2ML\config\FH2ML.json), and the [profile]
+// comment names the new folder. `text` is the ini as read; it's rewritten if needed.
+void upgrade_ini(const fs::path& ini_path, const std::string& text) {
+    const std::wstring ini = ini_path.wstring();
+    const bool had_updates_check_off = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) == 0;
+    std::string out;
+    bool in_updates = false, dropped = false, renamed = false;
+    for (std::size_t pos = 0; pos < text.size();) {
+        std::size_t eol = text.find('\n', pos);
+        eol              = eol == std::string::npos ? text.size() : eol + 1;
+        std::string line = text.substr(pos, eol - pos);
+        pos              = eol;
+        std::string t    = trim(line);
+        if (!t.empty() && t[0] == '[') {
+            for (auto& c : t) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            in_updates = t == "[updates]";
+        }
+        if (in_updates) {
+            dropped = true;
+            continue;
+        }
+        if (trim(line) == kOldRedoOnce) {
+            const std::size_t end = line.find_last_not_of("\r\n"); // keep its line ending
+            line    = WMB_REDO_ONCE + line.substr(end == std::string::npos ? 0 : end + 1);
+            renamed = true;
+        }
+        out += line;
+    }
+    if (!dropped && !renamed) return;
+    // [updates] was the last section: don't leave blank lines at the end.
+    while (out.size() >= 4 && out.ends_with("\r\n\r\n")) out.resize(out.size() - 2);
+    std::ofstream{ini_path, std::ios::binary | std::ios::trunc} << out;
+    if (dropped) {
+        log("removed [updates] from WheresMyBuddy.ini: FH2ML checks for updates now, as set in "
+            "FH2ML\\config\\FH2ML.json");
+        if (had_updates_check_off)
+            log("you had check=0 there; to keep WheresMyBuddy from checking, add \"mods\": {{\"wheresmybuddy\": "
+                "{{\"updateChecks\": false}}}} to FH2ML\\config\\FH2ML.json");
+    }
+}
+
 } // namespace
 
 Settings load_settings(const Paths& p) {
@@ -147,16 +179,15 @@ Settings load_settings(const Paths& p) {
     fs::create_directories(p.data, ec);
     const auto ini_path = p.data / "WheresMyBuddy.ini";
     if (!fs::exists(ini_path, ec)) {
-        std::ofstream{ini_path, std::ios::binary} << kDefaultIni << kProfileBlock << kUpdatesBlock;
+        std::ofstream{ini_path, std::ios::binary} << kDefaultIni << kProfileBlock;
     } else {
-        // Inis written before [profile] existed get the new section added.
         std::ifstream in{ini_path, std::ios::binary};
         const std::string text((std::istreambuf_iterator<char>(in)), {});
         in.close();
+        upgrade_ini(ini_path, text);
+        // Inis written before [profile] existed get the new section added.
         if (text.find("[profile]") == std::string::npos)
             std::ofstream{ini_path, std::ios::binary | std::ios::app} << kProfileBlock;
-        if (text.find("[updates]") == std::string::npos)
-            std::ofstream{ini_path, std::ios::binary | std::ios::app} << kUpdatesBlock;
     }
     if (!fs::exists(p.data / "friends.txt", ec))
         std::ofstream{p.data / "friends.txt", std::ios::binary} << kDefaultFriendsTxt;
@@ -187,7 +218,6 @@ Settings load_settings(const Paths& p) {
         if (w == L"always" || w == L"2") return Settings::Apply::Always;
         return Settings::Apply::Once;
     };
-    s.check_updates = ini_int(ini, L"updates", L"check", 1) != 0;
     s.player_name = apply(L"player_name");
     s.gamerpic    = apply(L"gamerpic");
     // Blank in the ini (e.g. written by an older build) -> the built-in ID.
@@ -252,30 +282,32 @@ bool replace_file(const fs::path& target, const std::vector<char>& d) {
 
 constexpr const char* kCacheMediaPath = "drivatarglobalcache/DefaultCache.bin";
 
-// The override goes through the platform's file overrides when it has them
-// (it then knows the file is ours, and cleans it up if WheresMyBuddy is
-// removed); with an older platform, straight to mediaoverride as before.
+// The override goes through FH2ML's file overrides (FH2ML then knows the file
+// is ours, and cleans it up if WheresMyBuddy is removed). Without FH2ML (the
+// offline tests), straight to mediaoverride.
 bool store_override(const Paths& p, const std::vector<char>& d) {
-    const FH2ModApi* api = platform_v2();
-    if (!api) return replace_file(p.override_, d);
-    // Before the platform managed it, WheresMyBuddy wrote this file itself.
-    // Remove that copy once, so the platform doesn't keep it as a backup.
+    const Fh2ml* f = fh2ml();
+    if (!f) return replace_file(p.override_, d);
+    // Before a loader managed it, WheresMyBuddy wrote this file itself.
+    // Remove that copy once, so FH2ML doesn't keep it as a backup. (The
+    // marker comes over with the old folder: FH2ML took over the records of
+    // the loader that wrote it since, so that copy is known to it.)
     std::error_code ec;
     const auto marker = p.data / "override-by-platform";
     if (!fs::exists(marker, ec)) {
         SetFileAttributesW(p.override_.c_str(), FILE_ATTRIBUTE_NORMAL);
         fs::remove(p.override_, ec);
-        std::ofstream{marker} << "DefaultCache.bin in mediaoverride is written through the FH2 Mod Platform\n";
+        std::ofstream{marker} << "DefaultCache.bin in mediaoverride is written through FH2ML's file overrides\n";
     }
-    return api->set_file(platform_mod(), kCacheMediaPath, d.data(), d.size()) == 1;
+    return f->S->SetFile(f->mod, kCacheMediaPath, d.data(), d.size()) == 1;
 }
 
 void remove_override(const Paths& p) {
     std::error_code ec;
     bool removed = false;
-    if (const FH2ModApi* api = platform_v2()) {
+    if (const Fh2ml* f = fh2ml()) {
         removed = fs::exists(p.override_, ec);
-        api->clear_file(platform_mod(), kCacheMediaPath);
+        f->S->ClearFile(f->mod, kCacheMediaPath);
     }
     SetFileAttributesW(p.override_.c_str(), FILE_ATTRIBUTE_NORMAL);
     if (fs::remove(p.override_, ec)) removed = true;

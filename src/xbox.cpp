@@ -126,7 +126,7 @@ void show_sign_in(const std::string& code, const std::string& url) {
             to_wide(url) + L"\nEnter this code there" +
             (copied ? L" (it's already copied, just press Ctrl+V)" : L"") + L":\n\n    " + to_wide(code) +
             L"\n\nSign in with the Microsoft account you use on Xbox. You only need to do this once.\n"
-            L"(Set enabled=0 under [xbox] in wheresmybuddy\\WheresMyBuddy.ini to stop this.)";
+            L"(Set enabled=0 under [xbox] in FH2ML\\data\\wheresmybuddy\\WheresMyBuddy.ini to stop this.)";
         MessageBoxW(nullptr, msg.c_str(), L"WheresMyBuddy: sign in to Xbox",
                     MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
     }).detach();

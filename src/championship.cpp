@@ -13,11 +13,11 @@
 // state's Serialize entry in its vtable for a wrapper that runs the original
 // and then gives every record the name that Drivatar id currently has in
 // the cache file the game is using (the override, or the original when the
-// mod is off). With platform 2.2 or later the swap is a platform hook
-// (hook_pointer), made once Extra Options has patched the game, so it's
-// listed in crash reports and other mods can hook the same slot. On an
-// older platform we swap the slot ourselves, as before. The save itself is never touched on disk; it simply picks up
-// the new names the next time the game saves the championship.
+// mod is off). The swap is an FH2ML hook (HookPointer), made once Extra
+// Options has patched the game, so it's listed in crash reports and other
+// mods can hook the same slot. Without FH2ML (the offline test) we swap the
+// slot ourselves. The save itself is never touched on disk; it simply picks
+// up the new names the next time the game saves the championship.
 
 #include "common.hpp"
 #include "platform_link.hpp"
@@ -207,23 +207,23 @@ bool patch_vtable(char* base) {
     return true;
 }
 
-// Through the platform's hooks (API 3).
-bool hook_vtable(const FH2ModApi* api, char* base) {
+// Through FH2ML's hooks.
+bool hook_vtable(const Fh2ml* f, char* base) {
     auto* slot = reinterpret_cast<void**>(base + kStateVtable) + kSerializeSlot;
     if (!accessible(slot, sizeof(void*), false) || *slot != base + kSerialize) {
         log("championship fix: unexpected game code, not installed");
         return false;
     }
     void* original = nullptr;
-    FH2Hook* hook  = api->hook_pointer(platform_mod(), "ChampionshipDrivatarsState::Serialize", slot,
-                                       reinterpret_cast<void*>(&serialize_hook), &original);
+    FH2ML_Hook* hook = f->S->HookPointer(f->mod, "ChampionshipDrivatarsState::Serialize", slot,
+                                         reinterpret_cast<void*>(&serialize_hook), &original);
     if (!hook) {
-        log("championship fix: the platform didn't allow the hook (fh2-mods\\platform.log says why), not installed");
+        log("championship fix: FH2ML didn't allow the hook (FH2ML\\logs\\FH2ML.log says why), not installed");
         return false;
     }
     g_original = reinterpret_cast<SerializeFn>(original); // before the hook can run
-    if (api->enable_hooks(platform_mod(), hook) != 1) {
-        log("championship fix: the platform couldn't switch the hook on (see fh2-mods\\platform.log)");
+    if (f->S->EnableHooks(f->mod, hook) != 1) {
+        log("championship fix: FH2ML couldn't switch the hook on (see FH2ML\\logs\\FH2ML.log)");
         return false;
     }
     return true;
@@ -257,11 +257,11 @@ void start_championship_fix(const Paths& p) {
     std::thread([] {
         // Azimuth maps the game when you hit Play, and the save (with the
         // championship) loads a few seconds later.
-        if (const FH2ModApi* api = platform_v3()) {
+        if (const Fh2ml* f = fh2ml()) {
             // Waits for the game, and for Extra Options to patch it first.
-            if (char* base = static_cast<char*>(api->wait_for_code(0xFFFFFFFFu)))
-                if (hook_vtable(api, base))
-                    log("championship fix installed as a platform hook (game at {})", static_cast<void*>(base));
+            if (char* base = static_cast<char*>(f->S->WaitForCode(INFINITE)))
+                if (hook_vtable(f, base))
+                    log("championship fix installed as an FH2ML hook (game at {})", static_cast<void*>(base));
             return;
         }
         for (;;) {

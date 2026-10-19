@@ -25,25 +25,28 @@ else()
     add_link_options(-static)
 endif()
 
-# The FH2 Mod Platform (git submodule): d3dcompiler_47.dll, shipped next
-# to azimuth.exe, and fh2mod.h.
-add_subdirectory(platform)
+# FH2ML's v4 mod API (FH2ML_v4.h, MIT), vendored from github.com/Refilewski/FH2ML.
+# FH2ML loads the mod from mods\wheresmybuddy and provides every service it uses.
+set(FH2ML_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/third_party/fh2ml)
 configure_file(cmake/version.h.in ${CMAKE_BINARY_DIR}/generated/fh2_version.h)
+# mods\wheresmybuddy\mod.json, with the same version as the DLL reports (WMB_VERSION).
+configure_file(cmake/mod.json.in ${CMAKE_BINARY_DIR}/mod.json @ONLY)
 
-# The mod: fh2-mods\WheresMyBuddy.dll
+# The mod: mods\wheresmybuddy\WheresMyBuddy.dll
 add_library(wheresmybuddy SHARED src/dll_main.cpp src/buddy.cpp src/xbox.cpp src/signin_browser.cpp src/profile.cpp
             src/championship.cpp src/aiplayers.cpp src/platform_link.cpp src/util.cpp src/version.rc)
-target_include_directories(wheresmybuddy PRIVATE src include third_party/nlohmann ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(wheresmybuddy PRIVATE src include third_party/nlohmann ${FH2ML_INCLUDE_DIR}
+                           ${CMAKE_BINARY_DIR}/generated)
 target_compile_definitions(wheresmybuddy PRIVATE WMB_DEFAULT_CLIENT_ID="${WMB_CLIENT_ID}" WMB_VERSION="${PROJECT_VERSION}")
-target_link_libraries(wheresmybuddy PRIVATE fh2mod_api winhttp crypt32 shell32 user32 ws2_32 bcrypt)
+target_link_libraries(wheresmybuddy PRIVATE winhttp crypt32 shell32 user32 ws2_32 bcrypt)
 set_target_properties(wheresmybuddy PROPERTIES OUTPUT_NAME WheresMyBuddy PREFIX "")
 
 option(WMB_TESTS "Build the offline test" OFF)
 if(WMB_TESTS)
     add_executable(wmb_test tests/wmb_test.cpp src/buddy.cpp src/aiplayers.cpp src/platform_link.cpp src/util.cpp)
-    target_include_directories(wmb_test PRIVATE src include third_party/nlohmann)
+    target_include_directories(wmb_test PRIVATE src include third_party/nlohmann ${FH2ML_INCLUDE_DIR})
     target_compile_definitions(wmb_test PRIVATE WMB_DEFAULT_CLIENT_ID="${WMB_CLIENT_ID}" WMB_VERSION="${PROJECT_VERSION}")
-    target_link_libraries(wmb_test PRIVATE fh2mod_api winhttp)
+    target_link_libraries(wmb_test PRIVATE winhttp)
 endif()
 if(WMB_TESTS)
     add_executable(browser_test tests/browser_test.cpp src/signin_browser.cpp src/util.cpp)
@@ -52,14 +55,14 @@ if(WMB_TESTS)
 endif()
 if(WMB_TESTS)
     add_executable(profile_test tests/profile_test.cpp src/profile.cpp src/buddy.cpp src/aiplayers.cpp src/platform_link.cpp src/util.cpp)
-    target_include_directories(profile_test PRIVATE src include third_party/nlohmann)
+    target_include_directories(profile_test PRIVATE src include third_party/nlohmann ${FH2ML_INCLUDE_DIR})
     target_compile_definitions(profile_test PRIVATE WMB_DEFAULT_CLIENT_ID="${WMB_CLIENT_ID}" WMB_VERSION="${PROJECT_VERSION}")
-    target_link_libraries(profile_test PRIVATE fh2mod_api winhttp)
+    target_link_libraries(profile_test PRIVATE winhttp)
 endif()
 if(WMB_TESTS)
     add_executable(championship_test tests/championship_test.cpp src/championship.cpp src/platform_link.cpp src/util.cpp)
-    target_include_directories(championship_test PRIVATE src include)
+    target_include_directories(championship_test PRIVATE src include ${FH2ML_INCLUDE_DIR})
     target_compile_definitions(championship_test PRIVATE WMB_VERSION="${PROJECT_VERSION}")
     target_link_options(championship_test PRIVATE -municode -Wl,--image-base=0x10000000)
-    target_link_libraries(championship_test PRIVATE fh2mod_api winhttp)
+    target_link_libraries(championship_test PRIVATE winhttp)
 endif()

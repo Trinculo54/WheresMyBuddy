@@ -1,11 +1,11 @@
 #pragma once
 
-// The FH2 Mod Platform (d3dcompiler_47.dll) calls our fh2mod_init right
-// after loading us. With an old FH2 Mod Loader (1.x) nobody does, and the
-// mod runs without the platform's services: no AI driver names, no update
-// notices.
+// FH2ML loads WheresMyBuddy from mods\wheresmybuddy and calls our Initialize
+// (dll_main.cpp) as Azimuth starts. Initialize hands FH2ML's services to
+// connect_fh2ml before it starts anything else, so every thread of ours has
+// them.
 
-#include "fh2mod.h"
+#include "FH2ML_v4.h"
 
 #include <windows.h>
 
@@ -14,14 +14,21 @@
 
 namespace wmb {
 
-// Waits (up to `ms`) for fh2mod_init; null if there's no platform.
-const FH2ModApi* wait_for_platform(DWORD ms);
-// Our handle, once registered.
-FH2Mod* platform_mod();
-// The platform, if it's new enough for file overrides and interfaces (API 2).
-const FH2ModApi* platform_v2();
-// The platform, if it's new enough for hooks (API 3, platform 2.2).
-const FH2ModApi* platform_v3();
+struct Fh2ml {
+    const FH2ML_Services_v4* S;
+    FH2ML_Mod* mod;       // our handle for every service
+    std::wstring azimuth; // the folder with azimuth.exe
+    std::wstring data;    // FH2ML\data\wheresmybuddy: settings, friends.txt, sign-in, logs
+};
+
+// From Initialize: keeps the services, brings the player's files over from the
+// old <Azimuth>\wheresmybuddy folder (once), publishes the WheresMyBuddy.Friends
+// interface and adds our Mods-page rows. False if `context` is unusable.
+bool connect_fh2ml(const FH2ML_ModContext_v4* context);
+
+// FH2ML's services and our handle, once Initialize has run; null before that,
+// and in the offline tests, which run without FH2ML.
+const Fh2ml* fh2ml();
 
 // What the WheresMyBuddy.Friends interface hands out (wheresmybuddy.h).
 void publish_drivatar_names(const std::vector<std::string>& names);

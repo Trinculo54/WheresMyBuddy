@@ -1,4 +1,6 @@
 build/
 build-test/
 dist/
-third_party/
+# Downloaded by scripts/build.sh; third_party/fh2ml is vendored.
+third_party/*
+!third_party/fh2ml/

@@ -13,7 +13,7 @@
 
 namespace wmb {
 
-// ---- logging (wheresmybuddy\wheresmybuddy.log, fresh every launch) --------
+// ---- logging (FH2ML\data\wheresmybuddy\wheresmybuddy.log, fresh every launch)
 void log_open(const std::filesystem::path& file);
 void log_write(std::string_view line);
 template <class... A> void log(std::format_string<A...> fmt, A&&... args) {
@@ -26,14 +26,15 @@ std::wstring to_wide(std::string_view s);
 // ---- paths ------------------------------------------------------------------
 struct Paths {
     std::filesystem::path azimuth;   // folder with azimuth.exe
-    std::filesystem::path data;      // <azimuth>\wheresmybuddy
+    std::filesystem::path data;      // FH2ML\data\wheresmybuddy (FH2ML's data folder for us)
     std::filesystem::path mount;     // <game>\Mount (game:\)
     std::filesystem::path original;  // Mount\media\drivatarglobalcache\DefaultCache.bin
     std::filesystem::path override_; // Mount\mediaoverride\drivatarglobalcache\DefaultCache.bin
 };
-Paths find_paths(HMODULE self);
+// `azimuth` and `data` come from FH2ML; this finds the game's files.
+Paths find_paths(const std::filesystem::path& azimuth, const std::filesystem::path& data);
 
-// ---- settings (wheresmybuddy\WheresMyBuddy.ini) -----------------------------
+// ---- settings (FH2ML\data\wheresmybuddy\WheresMyBuddy.ini) ----------------
 struct Settings {
     bool enabled          = true;
     int max_names         = 25;   // how many Drivatar names to replace (1..25)
@@ -47,7 +48,6 @@ struct Settings {
     enum class Apply { Off, Once, Always };
     Apply player_name = Apply::Once;
     Apply gamerpic    = Apply::Once;
-    bool check_updates = true; // [updates] check
 };
 Settings load_settings(const Paths& p);
 

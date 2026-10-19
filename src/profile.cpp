@@ -4,7 +4,7 @@
 //
 // By default each is done once, after the first sign-in, and then left
 // alone so you can still change them yourself. What's been done is kept in
-// wheresmybuddy\profile-applied.ini; delete it to redo.
+// FH2ML\data\wheresmybuddy\profile-applied.ini; delete it to redo.
 
 #include "common.hpp"
 

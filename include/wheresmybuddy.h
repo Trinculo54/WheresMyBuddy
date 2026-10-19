@@ -1,15 +1,18 @@
 /*
- * wheresmybuddy.h -- what WheresMyBuddy offers other FH2 mods (MIT, like the
- * FH2 Mod Platform API).
+ * wheresmybuddy.h -- what WheresMyBuddy offers other FH2 mods (MIT, like
+ * FH2ML's SDK headers).
  *
- * WheresMyBuddy publishes this through the FH2 Mod Platform (API 2 and up).
- * From your mod, on your own thread:
+ * WheresMyBuddy publishes this through FH2ML (FH2ML_v4.h) from its
+ * Initialize. From your v4 mod, on your own thread:
  *
- *     if (api->api_version >= 2 && api->wait_for_mods(30000)) {
+ *     if (S->WaitForMods(30000)) {
  *         const WheresMyBuddyFriendsV1* wmb = (const WheresMyBuddyFriendsV1*)
- *             api->get_interface(WHERESMYBUDDY_FRIENDS, 1);
+ *             S->GetInterface(WHERESMYBUDDY_FRIENDS, 1);
  *         if (wmb) { ... }
  *     }
+ *
+ * (or list "wheresmybuddy" under "dependencies" in your mod.json, and look
+ * it up in your Initialize).
  *
  * The names change when WheresMyBuddy refreshes the friends list from Xbox
  * Live, which happens in the background a few seconds after startup, so

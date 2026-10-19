@@ -1,5 +1,6 @@
-// WheresMyBuddy plugin entry (fh2-mods\WheresMyBuddy.dll), loaded by the
-// FH2 Mod Platform as Azimuth starts.
+// WheresMyBuddy's entry (mods\wheresmybuddy\WheresMyBuddy.dll), loaded by
+// FH2ML as Azimuth starts. Initialize links us to FH2ML (platform_link.cpp)
+// and starts our thread, which does the rest:
 //
 //   1. Right away: rebuild the Drivatar override from friends.txt plus the
 //      friends list saved last time. That's a ~1 MB file copy, done long
@@ -18,13 +19,16 @@
 
 namespace {
 
-DWORD WINAPI run(LPVOID param) {
+DWORD WINAPI run(LPVOID) {
     using namespace wmb;
-    const Paths p = find_paths(static_cast<HMODULE>(param));
+    const Fh2ml* f = fh2ml();
+    const Paths p  = find_paths(f->azimuth, f->data);
     std::error_code ec;
     std::filesystem::create_directories(p.data, ec);
     log_open(p.data / "wheresmybuddy.log");
-    log("WheresMyBuddy {} starting; Azimuth folder {}", WMB_VERSION, to_utf8(p.azimuth.wstring()));
+    log("WheresMyBuddy {} starting under FH2ML {}; Azimuth folder {}", WMB_VERSION,
+        f->S->runtime_version ? f->S->runtime_version : "?", to_utf8(p.azimuth.wstring()));
+    log("settings and logs in {}", to_utf8(p.data.wstring()));
     if (p.mount.empty()) {
         log("couldn't find the FH2 game folder (looked via data\\azimuth.ini and FH2\\Mount); stopping");
         return 0;
@@ -42,14 +46,6 @@ DWORD WINAPI run(LPVOID param) {
     }
 
     const Settings s = load_settings(p);
-
-    // The FH2 Mod Platform registers us (update notices etc.) from
-    // fh2mod_init, a moment after loading us.
-    if (const FH2ModApi* api = wait_for_platform(5000))
-        log("FH2 Mod Platform {}", api->platform_version);
-    else
-        log("WARNING: no FH2 Mod Platform (an old FH2 Mod Loader is installed?); reinstall WheresMyBuddy to "
-            "get it. Car meet names and update notices are off until then");
 
     const auto manual = read_manual_names(p);
     std::vector<std::string> cached_favs;
@@ -90,15 +86,38 @@ DWORD WINAPI run(LPVOID param) {
     return 0;
 }
 
+// On FH2ML's worker, as Azimuth starts and before the game is mapped.
+int initialize(const FH2ML_ModContext_v4* context, void*) {
+    if (!wmb::connect_fh2ml(context)) return 0;
+    // Our threads outlive Initialize: keep the DLL loaded for good.
+    HMODULE pinned = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                       reinterpret_cast<LPCWSTR>(&run), &pinned);
+    HANDLE t = CreateThread(nullptr, 0, run, nullptr, 0, nullptr);
+    if (!t) {
+        context->services->Log(context->mod, "couldn't start WheresMyBuddy's thread");
+        return 0;
+    }
+    CloseHandle(t);
+    return 1;
+}
+
+const FH2ML_ModAPI_v4 kDescriptor{
+    sizeof(FH2ML_ModAPI_v4),
+    FH2ML_API_VERSION_V4,
+    nullptr,
+    "WheresMyBuddy",
+    WMB_VERSION,
+    "Trinculo54/WheresMyBuddy",
+    "Puts your Xbox friends in the game: the Drivatars you race and meet carry your friends' gamertags instead "
+    "of random names. It can also make your in-game name and avatar your gamertag and gamerpic.",
+    0,
+    initialize,
+    nullptr,
+    nullptr};
+
 } // namespace
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
-    if (reason == DLL_PROCESS_ATTACH) {
-        DisableThreadLibraryCalls(instance);
-        HMODULE pinned = nullptr;
-        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
-                           reinterpret_cast<LPCWSTR>(&run), &pinned);
-        if (HANDLE t = CreateThread(nullptr, 0, run, instance, 0, nullptr)) CloseHandle(t);
-    }
-    return TRUE;
+FH2ML_V4_EXPORT const FH2ML_ModAPI_v4* FH2ML_GetModAPI_v4(uint32_t host_version) {
+    return host_version == FH2ML_API_VERSION_V4 ? &kDescriptor : nullptr;
 }

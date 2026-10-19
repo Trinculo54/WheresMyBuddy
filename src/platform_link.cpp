@@ -5,15 +5,19 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <initializer_list>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 namespace {
-std::atomic<const FH2ModApi*> g_api{nullptr};
-std::atomic<FH2Mod*> g_mod{nullptr};
-std::atomic<bool> g_gave_up{false};
-HANDLE g_ready = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+wmb::Fh2ml g_fh2ml;
+std::atomic<const wmb::Fh2ml*> g_connected{nullptr};
 
 std::mutex g_pub_mu;
 std::vector<std::string> g_names;
@@ -45,43 +49,25 @@ const WheresMyBuddyFriendsV1 g_friends{
         return g_gamertag.empty() ? 0 : copy_out(g_gamertag, out, out_size);
     },
 };
-} // namespace
 
-namespace wmb {
-
-const FH2ModApi* wait_for_platform(DWORD ms) {
-    // Only the first caller waits; after that, no platform means no platform.
-    if (!g_api && !g_gave_up && g_ready && WaitForSingleObject(g_ready, ms) != WAIT_OBJECT_0) g_gave_up = true;
-    return g_api;
+// Once: copies the platform-era files (a file, or a folder's contents) into the data
+// folder. Files already there win. A marker file remembers that it was done.
+// Copy, don't move: the old folder stays where it was until the player removes it.
+void import_from_platform(const FH2ML_ModContext_v4* c,
+                          std::initializer_list<std::pair<const wchar_t*, const wchar_t*>> items) {
+    std::error_code e;
+    const fs::path data = c->data_directory, marker = data / L"imported-from-fh2-mods.txt";
+    if (fs::exists(marker, e)) return;
+    for (auto [from, to] : items) {
+        const fs::path src = fs::path(c->services->azimuth_directory) / from, dst = data / to;
+        if (!fs::exists(src, e)) continue;
+        fs::create_directories(fs::is_directory(src, e) ? dst : dst.parent_path(), e);
+        fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::skip_existing, e);
+    }
+    std::ofstream(marker) << "Copied from the FH2 Mod Platform's folders on the first launch under FH2ML.\n";
 }
 
-FH2Mod* platform_mod() { return g_mod; }
-
-const FH2ModApi* platform_v2() {
-    const FH2ModApi* api = g_api;
-    return api && api->api_version >= 2 && g_mod ? api : nullptr;
-}
-
-const FH2ModApi* platform_v3() {
-    const FH2ModApi* api = g_api;
-    return api && api->api_version >= 3 && g_mod ? api : nullptr;
-}
-
-void publish_drivatar_names(const std::vector<std::string>& names) {
-    std::scoped_lock lk{g_pub_mu};
-    g_names = names;
-}
-
-void publish_signed_in_gamertag(const std::string& gamertag) {
-    std::scoped_lock lk{g_pub_mu};
-    g_gamertag = gamertag;
-}
-
-} // namespace wmb
-
-namespace {
-
-// ---- the Mods page (Pause > Settings > MODS, platform 2.3.0 / API 4) ----------------------
+// ---- the Mods page (Pause > Settings > MODS) -----------------------------------------------
 // The names switches, as On/Off rows. The Drivatars are written when the game starts, so
 // every change takes a restart (the game offers one when the player leaves the page).
 // A change is saved to WheresMyBuddy.ini straight away.
@@ -95,7 +81,7 @@ struct ModsRow {
 };
 const ModsRow kModsRows[] = {
     {"names_enabled", L"names", L"enabled", 1, "Friends as Drivatars",
-     "Your Xbox friends, and the names in wheresmybuddy\\friends.txt, race as the game's Drivatars. Off puts the original Drivatars back."},
+     "Your Xbox friends, and the names in FH2ML\\data\\wheresmybuddy\\friends.txt, race as the game's Drivatars. Off puts the original Drivatars back."},
     {"xbox_enabled", L"xbox", L"enabled", 1, "Xbox Live friends",
      "Sign in to Xbox Live and use the people you follow. Off uses only the names in friends.txt."},
     {"favorites_first", L"names", L"favorites_first", 1, "Favourites first",
@@ -112,10 +98,9 @@ void mods_row_changed(void* user, const char*, int value) {
     WritePrivateProfileStringW(r->section, r->ini_key, value ? L"1" : L"0", g_ini.c_str());
 }
 
-void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
-    if (api->api_version < 4 || !mod) return;   // an older platform: no Mods page
+void add_mods_rows(const FH2ML_Services_v4* S, FH2ML_Mod* mod) {
     for (const ModsRow& r : kModsRows) {
-        FH2Setting s{};
+        FH2ML_Setting s{};
         s.size          = sizeof s;
         s.key           = r.key;
         s.label         = r.label;
@@ -124,30 +109,40 @@ void add_mods_rows(const FH2ModApi* api, FH2Mod* mod) {
         s.needs_restart = 1;
         s.on_change     = mods_row_changed;
         s.user          = const_cast<ModsRow*>(&r);
-        api->add_setting(mod, &s);
+        S->AddSetting(mod, &s);
     }
 }
 
 } // namespace
 
-FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
-    if (!api || api->api_version < 1) return 1;
-    // [updates] check in our ini; read here directly since the rest of the
-    // settings load on our own thread.
-    const std::wstring ini = std::wstring{api->azimuth_dir} + L"\\wheresmybuddy\\WheresMyBuddy.ini";
-    FH2ModInfo info{};
-    info.size             = sizeof info;
-    info.name             = "WheresMyBuddy";
-    info.version          = WMB_VERSION;
-    info.github_repo      = "Trinculo54/WheresMyBuddy";
-    info.platform_version = FH2MOD_PLATFORM_VERSION;
-    info.description      = "Puts your Xbox friends in the game: the Drivatars you race and meet carry your friends' gamertags instead of random names. It can also make your in-game name and avatar your gamertag and gamerpic.";
-    info.check_updates    = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) != 0;
-    g_mod = api->register_mod(&info);
-    g_api = api;
-    if (api->api_version >= 2 && g_mod) api->publish_interface(g_mod, WHERESMYBUDDY_FRIENDS, 1, &g_friends);
-    g_ini = ini;
-    add_mods_rows(api, g_mod);
-    if (g_ready) SetEvent(g_ready);
-    return g_mod ? 0 : 1;
+namespace wmb {
+
+bool connect_fh2ml(const FH2ML_ModContext_v4* c) {
+    if (!c || !c->services || !c->mod || !c->data_directory || !c->services->azimuth_directory) return false;
+    g_fh2ml.S       = c->services;
+    g_fh2ml.mod     = c->mod;
+    g_fh2ml.azimuth = c->services->azimuth_directory;
+    g_fh2ml.data    = c->data_directory;
+    // Before FH2ML, everything lived in <Azimuth>\wheresmybuddy: bring it all over
+    // (settings, friends.txt, the saved friends list, the sign-in) before reading any of it.
+    import_from_platform(c, {{L"wheresmybuddy", L"."}});
+    g_ini = g_fh2ml.data + L"\\WheresMyBuddy.ini";
+    g_fh2ml.S->PublishInterface(g_fh2ml.mod, WHERESMYBUDDY_FRIENDS, 1, &g_friends);
+    add_mods_rows(g_fh2ml.S, g_fh2ml.mod);
+    g_connected.store(&g_fh2ml, std::memory_order_release);
+    return true;
 }
+
+const Fh2ml* fh2ml() { return g_connected.load(std::memory_order_acquire); }
+
+void publish_drivatar_names(const std::vector<std::string>& names) {
+    std::scoped_lock lk{g_pub_mu};
+    g_names = names;
+}
+
+void publish_signed_in_gamertag(const std::string& gamertag) {
+    std::scoped_lock lk{g_pub_mu};
+    g_gamertag = gamertag;
+}
+
+} // namespace wmb

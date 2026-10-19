@@ -183,7 +183,7 @@ void show_note() {
                     L"WheresMyBuddy opened the Microsoft sign-in page in your browser.\n\n"
                     L"Sign in with the account you use on Xbox and allow access. "
                     L"This box closes by itself when you're done.\n\n"
-                    L"(Set enabled=0 under [xbox] in wheresmybuddy\\WheresMyBuddy.ini to stop this.)",
+                    L"(Set enabled=0 under [xbox] in FH2ML\\data\\wheresmybuddy\\WheresMyBuddy.ini to stop this.)",
                     kDialogTitle, MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
     }).detach();
 }
