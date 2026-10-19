@@ -16,25 +16,29 @@ Your friends show up everywhere the game names its AI drivers: free roam, champi
 
 ## Install
 
-You'll need Forza Horizon 2 running on PC through Azimuth, and [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) installed with `EnableMediaOverrides=1` in its ini, which is the default. Extra Options is what lets the game load the modified Drivatar list and AI driver names.
+You'll need Forza Horizon 2 running on PC through Azimuth, [FH2ML](https://github.com/Refilewski/FH2ML), the Forza Horizon 2 mod loader, which loads WheresMyBuddy, and [Forza Horizon 2 Extra Options](https://github.com/RokkuDayo/forzahorizon2_extraoptions) installed with `EnableMediaOverrides=1` in its ini, which is the default. Extra Options is what lets the game load the modified Drivatar list and AI driver names.
 
-Download the latest zip from the [Releases](../../releases) page, close Azimuth, and extract the zip into your Azimuth folder, the one with `azimuth.exe` in it. You should end up with `d3dcompiler_47.dll` next to `azimuth.exe` and `WheresMyBuddy.dll` inside a `fh2-mods` folder.
+Download the latest zip from the [Releases](../../releases) page and close Azimuth. Then either install it with the FH2ML Manager (Mods > Install mod, and pick the zip), or extract the zip into your Azimuth folder, the one with `azimuth.exe` in it. Either way you end up with `WheresMyBuddy.dll` and its `mod.json` in `mods\wheresmybuddy`.
 
 Launch the game as normal. Your browser opens on the Microsoft sign-in page, and a small WheresMyBuddy note pops up on top of the game in case the browser ends up behind it. Pick the account you use on Xbox and allow access. The tab tells you when you're done, and the note closes itself.
 
 The game reads its Drivatar list very early, usually before the sign-in finishes, so your friends show up from the second launch onwards. The same goes for your name and avatar. From then on, every launch uses your saved friends straight away and quietly refreshes the list in the background.
 
+### Upgrading from 1.7 or earlier
+
+WheresMyBuddy 1.7 and earlier ran on a different loader, and FH2ML doesn't start its mods while that one is still installed. The FH2ML Manager shows it on its Mods page and removes it for you. On its first launch under FH2ML, WheresMyBuddy copies everything from the old `wheresmybuddy` folder next to `azimuth.exe` (your settings, `friends.txt`, the saved friends list and your sign-in) into `FH2ML\data\wheresmybuddy`, so there's nothing to redo. It only copies, so the old folder stays until you delete it.
+
 ### Updates
 
-When a newer WheresMyBuddy is out, the title screen tells you: "PRESS (A) TO START" gets a note like "WheresMyBuddy 1.2.0 is available" added to it. The mod asks GitHub at most every six hours and remembers the answer between launches. If another mod has put back an older FH2 Mod Platform than the one WheresMyBuddy came with, the title screen says that too, and reinstalling WheresMyBuddy fixes it. Other mods on the platform, like FH2 Universal Radio, put their notes in the same spot. The version you have is in the first line of the log and in the DLL's file properties.
+When a newer WheresMyBuddy is out, FH2ML tells you on the title screen, where "PRESS (A) TO START" gets a note added to it, and on its MODS tab. Update checks are FH2ML's job now, and you choose them in `FH2ML\config\FH2ML.json`: `"updateChecks": false` turns them off for every mod, and `"mods": {"wheresmybuddy": {"updateChecks": false}}` for WheresMyBuddy alone. The `[updates]` section older versions put in `WheresMyBuddy.ini` is removed from it on the first launch (if it said `check=0`, the log reminds you to set this). The version you have is in the first line of the log, in FH2ML's mod list and in the DLL's file properties.
 
 ### Using it with other FH2 mods
 
-`d3dcompiler_47.dll` is the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), the shared base for FH2 mods. It loads every mod in the `fh2-mods` folder and handles the jobs they have in common, like changing the game's text and showing update notices, so mods don't trip over each other. Every mod built on it ships it, so you can install them in any order and let them overwrite it. [FH2 Universal Radio](https://github.com/Trinculo54/FH2-Universal-Radio) 1.3.0 and later is built on it as well. Extra Options loads through `winmm.dll` and isn't affected. If the platform is missing or very old, WheresMyBuddy still renames the Drivatars, but car meet names and update notices are off until you reinstall it. With platform 2.1.0 or later, the Drivatar file goes through the platform too, so removing WheresMyBuddy puts the original Drivatars back on its own, and other mods can ask WheresMyBuddy which names are on the Drivatars and who's signed in, through the `WheresMyBuddy.Friends` interface in [`include/wheresmybuddy.h`](include/wheresmybuddy.h). With platform 2.2.0 or later, the championship fix below is a platform hook. It goes in only after Extra Options has finished patching the game, it's listed in the platform's crash reports, and other mods can hook the same game code alongside it. The platform also ships `LICENSE-MinHook.txt`, since it includes MinHook.
+FH2ML loads every mod in the `mods` folder and handles the jobs they have in common, like changing the game's text and files and hooking game code, so mods don't trip over each other. Extra Options loads through `winmm.dll` and isn't affected. The Drivatar file goes through FH2ML's file overrides, so removing WheresMyBuddy puts the original Drivatars back on its own. Other mods can ask WheresMyBuddy which names are on the Drivatars and who's signed in, through the `WheresMyBuddy.Friends` interface in [`include/wheresmybuddy.h`](include/wheresmybuddy.h). The championship fix below is an FH2ML hook: it goes in only after Extra Options has finished patching the game, it's listed in FH2ML's crash reports, and other mods can hook the same game code alongside it.
 
 ## Settings
 
-Everything lives in the `wheresmybuddy` folder next to `azimuth.exe`, which is created the first time you launch. `WheresMyBuddy.ini` has the options, and changes apply the next time you start Azimuth.
+Everything lives in `FH2ML\data\wheresmybuddy` in your Azimuth folder, which FH2ML creates the first time WheresMyBuddy loads and keeps when you update or reinstall the mod. `WheresMyBuddy.ini` has the options, and changes apply the next time you start Azimuth.
 
 Under `[names]`, `enabled` turns the whole mod on or off, and setting it to 0 restores the original Drivatars on the next launch. `max_names` is how many of the 25 Drivatar names get replaced. If you have fewer friends than that, `repeat_to_fill` decides whether the leftover slots keep their original names or reuse your friends'. `favorites_first` puts your Xbox favourites at the front of the line. `rotate` decides what happens when you have more friends than `max_names`. Set to 1, which is the default, your favourites and the names in `friends.txt` always stay in, and the rest take turns, a different set each launch. Set to 0, it always uses the same first ones. Because championship racers follow the Drivatar list, a championship in progress picks up that launch's names too.
 
@@ -42,15 +46,13 @@ Under `[xbox]`, `enabled` set to 0 skips Xbox Live entirely and only uses `frien
 
 Under `[profile]`, `player_name` and `gamerpic` can each be `once`, `always` or `off`. `once` sets it after your first sign-in and then never touches it again, `always` keeps it in sync with Xbox on every launch, and `off` leaves it alone. To run a `once` again, delete `profile-applied.ini`.
 
-Under `[updates]`, `check` set to 0 stops the mod from asking GitHub whether there's a newer version.
+The main switches are also in the game, under Pause > Settings > MODS: friends as Drivatars (`[names] enabled`), Xbox Live friends (`[xbox] enabled`), favourites first, friends taking turns (`rotate`) and filling every Drivatar (`repeat_to_fill`). Changing them there saves them to the ini. Since the Drivatars are written when the game starts, the game offers to restart when you leave the page.
 
-With FH2 Mod Platform 2.3.0 or later, the main switches are also in the game, under Pause > Settings > MODS: friends as Drivatars (`[names] enabled`), Xbox Live friends (`[xbox] enabled`), favourites first, friends taking turns (`rotate`) and filling every Drivatar (`repeat_to_fill`). Changing them there saves them to the ini. Since the Drivatars are written when the game starts, the game offers to restart when you leave the page.
-
-`friends.txt` takes one name per line. Gamertags are limited to 15 characters, the same as on the Xbox One, and longer ones are skipped.
+`friends.txt`, in the same folder, takes one name per line. Gamertags are limited to 15 characters, the same as on the Xbox One, and longer ones are skipped.
 
 ## Uninstall
 
-Set `enabled=0` under `[names]` and launch the game once to put the original Drivatars back, then delete `fh2-mods\WheresMyBuddy.dll` and the `wheresmybuddy` folder. If you don't use any other FH2 mods, delete `d3dcompiler_47.dll` and the `fh2-mods` folder too. If you've already deleted the mod, you can remove `FH2\Mount\mediaoverride\drivatarglobalcache\DefaultCache.bin` and the `AIPlayers.str` files under `FH2\Mount\mediaoverride\Stripped\StringTables` by hand instead. To get your old avatar back, rename `Gamerpic.before-wheresmybuddy.png` next to `FH2_ExtraOptions.ini` to `Gamerpic.png`.
+Set `enabled=0` under `[names]` and launch the game once to put the original Drivatars back, then uninstall WheresMyBuddy in the FH2ML Manager (Mods > Uninstall), or delete the `mods\wheresmybuddy` folder. Your settings stay in `FH2ML\data\wheresmybuddy`; delete that folder too if you won't be back. If you've already deleted the mod and FH2ML with it, you can remove `FH2\Mount\mediaoverride\drivatarglobalcache\DefaultCache.bin` and the `AIPlayers.str` files under `FH2\Mount\mediaoverride\Stripped\StringTables` by hand instead. To get your old avatar back, rename `Gamerpic.before-wheresmybuddy.png` next to `FH2_ExtraOptions.ini` to `Gamerpic.png`.
 
 If you want to revoke the mod's Xbox access as well, remove WheresMyBuddy from the apps list at <https://account.live.com/consent/Manage>.
 
@@ -66,29 +68,29 @@ The Xbox side is the standard chain a PC app uses: a Microsoft account sign-in t
 
 ## Build from source
 
-The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases) and CMake, on top of the [FH2 Mod Platform](https://github.com/Trinculo54/FH2-Mod-Platform), which is a git submodule in `platform/`. Clone with `--recursive`, or run `git submodule update --init`; the build script does it for you if it's missing. On Linux:
+The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases) and CMake, against FH2ML's v4 mod API: [`FH2ML_v4.h`](third_party/fh2ml/FH2ML_v4.h), vendored from [FH2ML](https://github.com/Refilewski/FH2ML) under the MIT licence next to it. On Linux:
 
 ```bash
 ./scripts/build.sh
 ```
 
-`dist/` then holds `d3dcompiler_47.dll`, `fh2-mods/WheresMyBuddy.dll` and a `README.txt`, ready to zip up. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.0.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`. Bump it before tagging, since the tag build refuses to run if the two don't match, and it's what the mod compares against the latest GitHub release.
+`dist/` then holds `mods/wheresmybuddy/` with `mod.json`, `WheresMyBuddy.dll`, `README.txt` and `LICENSE.txt`, ready to zip up: the zip extracts straight into the Azimuth folder, and the FH2ML Manager installs it as it is. GitHub Actions does the same on every push and uploads the result as a build artifact. Pushing a tag like `v1.0.0` also creates a draft release with the zip attached, ready to be published. The version lives in `project(... VERSION x.y.z)` in `CMakeLists.txt`, and `mod.json` is generated from [`cmake/mod.json.in`](cmake/mod.json.in) with it, so the two always match. Bump it before tagging, since the tag build refuses to run if the tag and the version don't match, and it's what FH2ML compares against the latest GitHub release.
 
 The release build has the WheresMyBuddy Azure app ID built in. If you fork this, you can use your own: register an app in the [Azure portal](https://portal.azure.com) under App registrations, choose "Personal Microsoft accounts only", add `http://localhost` as a redirect URI under the "Mobile and desktop applications" platform, and turn on "Allow public client flows". Then either build with `WMB_CLIENT_ID=<your app id> ./scripts/build.sh` or put the ID in `client_id` in the ini.
 
-Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin`. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save (or copies of the built-in ones, with `-` instead of a save), on its own or, with `platform` at the end, through a stand-in for the platform's hook API. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
+Configuring with `-DWMB_TESTS=ON` also builds four offline tests that run under Wine. `wmb_test` rewrites a copy of the real `DefaultCache.bin`. `championship_test` maps the real game executable and runs the championship fix against Drivatars taken from a save (or copies of the built-in ones, with `-` instead of a save), on its own or, with `fh2ml` at the end, through a stand-in for FH2ML's services, which also checks the Mods-page rows and the one-time copy of the old `wheresmybuddy` folder. `profile_test` checks the name and avatar settings. `browser_test` pretends to be a browser to exercise the sign-in redirect.
 
 ## Troubleshooting
 
-Everything gets logged to `wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `AI driver names (car meets, road trips): N swapped`, `championship fix installed` (`... as a platform hook` with platform 2.2.0 or later, and `platform.log` then has a `[WheresMyBuddy] hooked pointer game+0x2D44F30` line), `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. The FH2 Mod Platform writes `fh2-mods\platform.log`, which shows whether the mod was loaded at all, and which game text and files it wrote for it. If the game crashes, the platform saves a report in `fh2-mods\crashes` that says which mod, if any, was involved; attach it when you report a problem.
+Everything gets logged to `FH2ML\data\wheresmybuddy\wheresmybuddy.log`, which starts fresh every launch. A working launch shows `wrote ... with N of 25 Drivatar names replaced`, `AI driver names (car meets, road trips): N swapped`, `championship fix installed as an FH2ML hook` (and `FH2ML.log` then has a `wheresmybuddy: hooked pointer game+0x2D44F30` line), `signed in to Xbox Live as <your gamertag>`, and `got N people from Xbox Live`. When the game loads a championship that still has old names, you'll also see a line for each Drivatar it renames. FH2ML writes `FH2ML\logs\FH2ML.log`, which shows whether the mod was loaded at all (`wheresmybuddy: lifecycle v4 initialized`), and which game text and files it wrote for it. If the game crashes, FH2ML saves a report in `FH2ML\logs\crashes` that says which mod, if any, was involved; attach it when you report a problem.
 
 | Symptom | Fix |
 |---|---|
-| Nothing happens and there's no `wheresmybuddy` folder | Make sure `d3dcompiler_47.dll` is next to `azimuth.exe` and `WheresMyBuddy.dll` is inside `fh2-mods`, then check `fh2-mods\platform.log`. |
+| Nothing happens and there's no `FH2ML\data\wheresmybuddy` folder | Make sure FH2ML is installed and `WheresMyBuddy.dll` and `mod.json` are inside `mods\wheresmybuddy`, then check `FH2ML\logs\FH2ML.log`. |
 | Drivatars still have their old names | Launch the game a second time, since the first launch only fetches your friends. If they're still old, check that Extra Options is installed with `EnableMediaOverrides=1`. The log warns about both. |
 | The browser shows a Microsoft error page | Set `browser_sign_in=0` and use the code at microsoft.com/link instead, and open an issue with a screenshot of the error. |
 | `Xbox Live authorization failed` | The log says why. Usually the account has no Xbox profile yet, or it's a child account that needs to be added to a Microsoft family. |
-| Signed in as the wrong account | Delete `wheresmybuddy\account.dat` and launch again. |
+| Signed in as the wrong account | Delete `FH2ML\data\wheresmybuddy\account.dat` and launch again. |
 | A friend is missing | Gamertags longer than 15 characters don't fit a Drivatar and are skipped. Also, only the first `max_names` names are used. |
 
 If you're still stuck, open an issue and attach your `wheresmybuddy.log`. It doesn't contain your sign-in, just the steps and your friends' gamertags.
