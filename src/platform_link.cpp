@@ -141,6 +141,7 @@ FH2MOD_EXPORT int fh2mod_init(const FH2ModApi* api) {
     info.version          = WMB_VERSION;
     info.github_repo      = "Trinculo54/WheresMyBuddy";
     info.platform_version = FH2MOD_PLATFORM_VERSION;
+    info.description      = "Puts your Xbox friends in the game: the Drivatars you race and meet carry your friends' gamertags instead of random names. It can also make your in-game name and avatar your gamertag and gamerpic.";
     info.check_updates    = GetPrivateProfileIntW(L"updates", L"check", 1, ini.c_str()) != 0;
     g_mod = api->register_mod(&info);
     g_api = api;
